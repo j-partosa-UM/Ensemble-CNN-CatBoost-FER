@@ -67,25 +67,15 @@ function initCanvas() {
     canvas.height = videoStream.getVideoTracks()[0].getSettings().height || CONFIG.streamHeight;
 }
 
-function drawFrame(video, context, canvas, bbox = null, colorHex = null) {
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    if (bbox && bbox.length === 4) {
-        // Scale bbox from capture resolution to canvas resolution
-        const scaleX = canvas.width / CONFIG.captureWidth;
-        const scaleY = canvas.height / CONFIG.captureHeight;
-
-        const [x, y, w, h] = bbox;
-        context.strokeStyle = colorHex;
-        context.lineWidth = 4;
-        context.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
-    }
-}
-
 function drawLoop() {
     // Draw the raw onto the current active canvas when idle, or let the handler override it
     if (canvas && ctx && video.readyState >= 2) {
-        drawFrame(video, ctx, canvas);
+        drawFrame(
+            video, ctx, canvas,
+            lastResult?.bbox || null,
+            lastResult ? (emotionColors[lastResult.emotion] || '#ffffff') : null,
+            lastResult?.landmarks || null
+        );
     }
     requestAnimationFrame(drawLoop);
 }
@@ -115,9 +105,101 @@ async function initCamera() {
     }
 }
 
+/*========== INFERENCE ========== */
+let isRunning = false;
+let inferenceTimer = null;
+let lastResult = null;
+const captureCanvas = document.createElement('canvas');
+captureCanvas.width = CONFIG.captureWidth;
+captureCanvas.height = CONFIG.captureHeight;
+const captureCtx = captureCanvas.getContext('2d');
+const emotionColors = {
+    happy: '#39ffb4', sad: '#ff55aa', fear: '#aa55ff',
+    angry: '#ff5555', disgust: '#8DB600', surprise: '#FF6B00', neutral: '#55AAFF'
+};
+
+async function sendFrame() {
+    if (!isRunning || !videoStream || video.readyState < 2) return;
+
+    // Downscale frame to capture resolution before sending
+    captureCtx.drawImage(video, 0, 0, CONFIG.captureWidth, CONFIG.captureHeight);
+
+    const blob = await new Promise(resolve =>
+        captureCanvas.toBlob(resolve, 'image/jpeg', CONFIG.jpegQuality)
+    );
+
+    const formData = new FormData();
+    formData.append('frame', blob);
+
+    try {
+        const response = await fetch('/predict', { method: 'POST', body: formData });
+        const result = await response.json();
+        handleResult(result);
+    } catch (err) {
+        console.error('Inference error:', err);
+    }
+}
+
+function handleResult(result) {
+    lastResult = result;
+
+    // Update UI readouts (dashboard only)
+    const emotionDisplay = document.getElementById('emotion-display');
+    const confidenceDisplay = document.getElementById('confidence-display');
+    if (emotionDisplay) emotionDisplay.textContent = result.emotion;
+    if (confidenceDisplay) confidenceDisplay.textContent = 
+        (result.confidence * 100).toFixed(1) + '%';
+}
+
+function drawFrame(video, context, canvas, bbox = null, colorHex = null, landmarks = null) {
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const scaleX = canvas.width / CONFIG.captureWidth;
+    const scaleY = canvas.height / CONFIG.captureHeight;
+
+    if (bbox && bbox.length === 4) {
+        const [x, y, w, h] = bbox;
+        context.strokeStyle = colorHex;
+        context.lineWidth = 4;
+        context.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
+    }
+
+    if (landmarks && landmarks.length) {
+        context.fillStyle = colorHex;
+        for (const [x, y] of landmarks) {
+            context.beginPath();
+            context.arc(x * scaleX, y * scaleY, 3, 0, 2 * Math.PI);
+            context.fill();
+        }
+    }
+}
+
+function startInference() {
+    if (isRunning) return;
+    isRunning = true;
+    inferenceTimer = setInterval(sendFrame, CONFIG.inferenceInterval);
+}
+
+function stopInference() {
+    isRunning = false;
+    clearInterval(inferenceTimer);
+}
+
 window.addEventListener('load', () => {
     // Start on Dashboard page as default
     canvas = canvasElements['dashboard'];
     ctx = canvas.getContext('2d');
     initCamera();
+
+    document.querySelectorAll('.start-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!isRunning) {
+                startInference();
+                btn.textContent = 'Stop';
+            } else {
+                stopInference();
+                btn.textContent = 'Start Logging';
+            }
+        })
+    });
 });

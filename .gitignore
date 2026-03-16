@@ -3,6 +3,7 @@ prototypev1.1/
 test/
 
 # ignoring common junk
+.venv/
 __pycache__/
 *.pyc
 .vscode/
