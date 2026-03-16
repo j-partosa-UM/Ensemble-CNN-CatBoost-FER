@@ -1,0 +1,47 @@
+<header class="header">
+    <div class="header-content">
+        <img src="{{ url_for('static', filename='images/UM-logo.png' ) }}" alt="logo" class="header-logo">
+        <img src="{{ url_for('static', filename='images/UM-CCE-logo.png') }}" alt="logo" class="header-logo">
+        <div class="header-title-group">
+            <h1 class="header-title">Ensemble CNN and CatBoost Facial Expression Recognition</h1>
+            <span>Real-time</span>
+        </div>
+    </div>
+    <nav class="header-nav">
+        <ul class="nav-list">
+            <li class="nav-item">
+                <a onClick="switchPage('dashboard')" id="dashboard" class="nav-link active">Dashboard</a>
+            </li>
+            <li class="nav-item">
+                <a onClick="switchPage('comparison')" id="comparison" class="nav-link">Comparison</a>
+            </li>
+            <li class="nav-item">
+                <a onClick="switchPage('analysis')" id="analysis" class="nav-link">Analysis</a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Hamburger Dropdown Nav -->
+    <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle menu" aria-expanded="false">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+    </button>
+
+    <!-- Mobile Dropdown Nav -->
+    <nav class="mobile-nav" id="mobile-nav">
+        <ul class="mobile-nav-list">
+            <li>
+                <a onclick="switchPage('dashboard'); closeMobileNav();" id="mob-dashboard"
+                    class="nav-link active">Dashboard</a>
+            </li>
+            <li>
+                <a onClick="switchPage('comparison'); closeMobileNav();" id="mob-comparison"
+                    class="nav-link">Comparison</a>
+            </li>
+            <li>
+                <a onClick="switchPage('analysis'); closeMobileNav();" id="mob-analysis" class="nav-link">Analysis</a>
+            </li>
+        </ul>
+    </nav>
+</header>

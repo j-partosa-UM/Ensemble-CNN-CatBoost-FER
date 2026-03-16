@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!--========== DASHBOARD PAGE ==========-->
+<section id="dashboard-page" class="page-section active">
+    <div class="dash-content__cam cam-panel">
+        <div class="emotion-readout">
+            <div class="readout-main" id="emotion-display">--</div>
+            <div class="readout-sub" id="confidence-display">Ready to start</div>
+        </div>
+        <canvas id="video-canvas-dash"></canvas>
+    </div>
+
+    <div class="dash-content__cam-btn">
+        <button class="start-button">Start Logging</button>
+    </div>
+
+    <div class="dash-content__session-log">
+        <h3 class="session-log-header">Session Log</h3>
+        <section class="session-log-list" id="log-list">
+            <div class="session-log-list-item">
+                Entries will show here...
+            </div>
+        </section>
+    </div>
+
+    <div id="dash-content__emotion-legend" class="emotion-legend-panel">
+        <div class="emotion-legend-inner">
+            <span class="legend-item"><span class="legend-dot happy"></span>Happy</span>
+            <span class="legend-item"><span class="legend-dot sad"></span>Sad</span>
+            <span class="legend-item"><span class="legend-dot fear"></span>Fear</span>
+            <span class="legend-item"><span class="legend-dot angry"></span>Angry</span>
+            <span class="legend-item"><span class="legend-dot disgust"></span>Disgust</span>
+            <span class="legend-item"><span class="legend-dot surprise"></span>Surprise</span>
+            <span class="legend-item"><span class="legend-dot neutral"></span>Neutral</span>
+        </div>
+    </div>
+</section>
+
+<!--========== COMPARISON PAGE (BASELINE CNN VS ENSEMBLE) ==========-->
+<section id="comparison-page" class="page-section">
+    <div class="comp-content__cam cam-panel">
+        <canvas id="video-canvas-comp"></canvas>
+    </div>
+
+    <div class="comp-content__comparison-panel">
+        <div class="comp-content__result-panel" id="cnn-log">
+            <h3 class="result-panel-header">CNN (Baseline)</h3>
+            <div class="emotion-label">--</div>
+            <div class="emotion-confidence">0.0% | -- ms</div>
+        </div>
+
+        <div class="comp-content__result-panel" id="ensemble-log">
+            <h3 class="result-panel-header">CNN-CatBoost (Proposed)</h3>
+            <div class="emotion-label">--</div>
+            <div class="emotion-confidence">0.0% | -- ms</div>
+        </div>
+    </div>
+
+    <div class="comp-content__cam-btn">
+        <button class="start-button">Start Comparison</button>
+    </div>
+
+    <div class="comp-content__emotion-legend">
+        <div class="emotion-legend-inner">
+            <span class="legend-item"><span class="legend-dot happy"></span>Happy</span>
+            <span class="legend-item"><span class="legend-dot sad"></span>Sad</span>
+            <span class="legend-item"><span class="legend-dot fear"></span>Fear</span>
+            <span class="legend-item"><span class="legend-dot angry"></span>Angry</span>
+            <span class="legend-item"><span class="legend-dot disgust"></span>Disgust</span>
+            <span class="legend-item"><span class="legend-dot surprise"></span>Surprise</span>
+            <span class="legend-item"><span class="legend-dot neutral"></span>Neutral</span>
+            </span>
+        </div>
+    </div>
+</section>
+
+<section id="analysis-page" class="page-section">
+    <div class="analytics-container__top">
+        <h3>Session Analytics</h3>
+        <p>Overview of emotions detected in the current sessions</p>
+    </div>
+
+    <div class="analytics-container__mid">
+        <div class="chart-card">
+            <h3>Emotion Distribution</h3>
+            <div class="chart-wrapper">
+                <canvas id="emotionChart"></canvas>
+            </div>
+            <div id="no-data-msg">
+                No data yet. Start logging first.
+            </div>
+        </div>
+
+        <div class="export-card">
+            <h3>Export Data</h3>
+            <div class="export-options">
+                <div class="export-option">
+                    <span class="export-icon">📄</span>
+                    <div>
+                        <h4>Download CSV</h4>
+                        <p>Raw spreadsheet data</p>
+                    </div>
+                </div>
+
+                <div class="export-option">
+                    <span class="export-icon">💾</span>
+                    <div>
+                        <h4>Clinical Data Log</h4>
+                        <p>For professional early diagnosis</p>
+                    </div>
+                </div>
+            </div>
+            <p>Secure Export • Local Storage Only</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
