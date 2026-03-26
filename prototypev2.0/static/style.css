@@ -347,6 +347,9 @@ header .header-logo {
     color: var(--primary);
     border-radius: .9em;
     max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .session-log-header {
@@ -356,9 +359,30 @@ header .header-logo {
 
 .session-log-list {
     font-size: 1rem;
-    margin: 1.43em 0 0;
+    margin: 1.125em 0;
     padding: .67em .33em;
+    overflow-y: auto;
+    scrollbar-width: none;
+    flex: 1;
+    min-height: 0;
 }
+
+.session-log-list-item {
+    display: flex;
+    align-items: center;
+    padding: .5em;
+    margin-bottom: .625em;
+    border-radius: .375em;
+    border-left: 4px solid transparent;
+    gap: .5em;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.log-time       { flex: 0 0 auto; font-size: .875rem; color: rgba(255, 255, 255, .6); }
+.log-emotion    { flex: 1 1 auto; font-weight: 500; min-width: 0; max-width: 5.5em; overflow: hidden; text-overflow: ellipsis;}
+.log-confidence { flex: 0 0 auto; }
+.log-inference  { flex: 0 0 auto; color: rgba(255, 255, 255, .6); }
 
 .session-log-header::after {
     content: '(Ensemble)';
@@ -451,16 +475,26 @@ header .header-logo {
 }
 
 .analytics-container__mid .chart-card {
-    padding: 2em 0;
+    padding: 1.5em;
     width: 50%;
     height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
     background: var(--secondary);
     color: var(--primary);
     border-radius: .9em;
+    gap: 1em;
+}
+
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 30em;
+    height: 25em;
+    min-height: 0;
+    padding: 0 1.5em;
+    margin: auto 0;
 }
 
 .analytics-container__mid .export-card {
@@ -781,6 +815,10 @@ video {
     .dash-content__cam-btn { order: 3; }
     .dash-content__session-log { order: 4; }
 
+    .session-log-list-item {
+        justify-content: space-between;
+    }
+
     #comparison-page.active {
         display: flex;
         flex-direction: column;
@@ -818,8 +856,12 @@ video {
     .analytics-container__mid .chart-card,
     .analytics-container__mid .export-card {
         width: 100%;
-        height: auto;
+        height: 18.75em;
         padding: 1em 1.2em;
+    }
+
+    .chart-wrapper {
+        height: 15.625em;
     }
 
     .export-card .export-options {
@@ -889,5 +931,25 @@ video {
 
     .session-log-list {
         font-size: .875rem;
+    }
+
+    .session-log-list-item {
+        gap: .35em;
+        padding: .4em;
+        justify-content: start;
+    }
+
+    .log-item,
+    .log-confidence,
+    .log-inference {
+        font-size: .72rem;
+    }
+
+    .log-emotion {
+        font-size: .75rem;
+    }
+
+    .chart-wrapper {
+        height: 12.5em;
     }
 }

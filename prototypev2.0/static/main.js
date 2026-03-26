@@ -26,17 +26,21 @@ function switchPage(link) {
         el.classList.toggle('active', el.id === `mob-${link}`)
     });
 
-    if (canvasElements[link]) {
-        canvas = canvasElements[link];
-        initCanvas();
-        ctx = canvas.getContext('2d');  
-    }
-
     // Stop inference and reset button when switching pages
     stopInference();
     document.querySelectorAll('.start-button').forEach(btn => {
         btn.textContent = link === 'comparison' ? 'Start Comparison' : 'Start Logging'
     })
+    if (link === 'analysis') {
+        requestAnimationFrame(() => renderChart());
+        return
+    }
+
+    if (canvasElements[link]) {
+        canvas = canvasElements[link];
+        initCanvas();
+        ctx = canvas.getContext('2d');  
+    }
 }
 
 /*========== MOBILE NAV ========== */
@@ -214,6 +218,27 @@ function handleDashboardResult(result, inferenceMs) {
 // Session log: one row per prediction, newest on top
 const MAX_LOG_ENTRIES = 100; // cap so the list never grows unbounded
 
+class Log {
+    constructor(data, next = null) {
+        this.data = data;
+        this.next = next;
+    }
+}
+
+class SessionLog {
+    constructor() {
+        this.head = null;
+        this.size = 0;
+    }
+
+    prepend(data) {
+        this.head = new Log(data, this.head);
+        this.size++;
+    }
+}
+
+const sessionLog = new SessionLog();
+
 function appendSessionLog(label, confidence, inferenceMs) {
     if (!logList) return;
 
@@ -233,6 +258,8 @@ function appendSessionLog(label, confidence, inferenceMs) {
 
     const entry = document.createElement('div');
     entry.className = 'session-log-list-item';
+    entry.style.borderLeftColor = emotionColors[label];
+    entry.style.background = 'rgba(255, 255, 255, 0.03)'
     entry.innerHTML = `
         <span class="log-time">${time}</span>
         <span class="log-emotion" style="color:${emotionColors[label] || '#ffffff'}">${label}</span>
@@ -242,6 +269,7 @@ function appendSessionLog(label, confidence, inferenceMs) {
 
     // Newest entry at the top
     logList.insertBefore(entry, logList.firstChild);
+    sessionLog.prepend({ timestamp: time, label: label, confidence });
 
     // Trim oldest entries beyond the cap
     while (logList.children.length > MAX_LOG_ENTRIES) {
@@ -270,7 +298,7 @@ function handleComparisonResult(result, inferenceMs) {
     // CNN baseline panel (#cnn-log)
     if (cnnLabel)       cnnLabel.textContent = cnn?.label ?? '--';
     if (cnnConfidence)  cnnConfidence.textContent = cnn
-        ? `${(cnn.confidence * 100).toFixed(1)} | ${inferenceMs} ms`
+        ? `${(cnn.confidence * 100).toFixed(1)}% | ${inferenceMs} ms`
         : '0.0% | --ms';
 }
 
@@ -288,14 +316,18 @@ function drawFrame(video, context, canvas, bbox = null, colorHex = null, landmar
         context.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
     }
 
+    context.globalAlpha = 0.6
+
     if (landmarks && landmarks.length) {
         context.fillStyle = colorHex;
         for (const [x, y] of landmarks) {
             context.beginPath();
-            context.arc(x * scaleX, y * scaleY, 3, 0, 2 * Math.PI);
+            context.arc(x * scaleX, y * scaleY, 1.5, 0, 2 * Math.PI);
             context.fill();
         }
     }
+
+    context.globalAlpha = 1.0
 }
 
 /*========== START / STOP ========== */
@@ -310,6 +342,115 @@ function stopInference() {
     inferenceInFlight   = false;
     clearInterval(inferenceTimer);
     lastResult = null;
+}
+
+/*========== CHART ========== */
+let emotionChartInstance = null;
+
+function renderChart() {
+    const ctxChart = document.getElementById('emotionChart').getContext('2d');
+    const noDataMsg = document.getElementById('no-data-msg');
+
+    if (sessionLog.size === 0) {
+        if (emotionChartInstance) emotionChartInstance.destroy();
+        if (noDataMsg) noDataMsg.style.display = 'block';
+        return;
+    }
+    if (noDataMsg) noDataMsg.style.display = 'none';
+
+    // 1. Aggregate Data
+    const counts = {};
+    let current = sessionLog.head;
+    while (current) {
+        const emo = current.data['label'];
+        counts[emo] = (counts[emo] || 0) + 1;
+        current = current.next;
+    }
+
+    const totalCount = sessionLog.size;
+    const labels = Object.keys(counts);
+    const rawData = Object.values(counts);
+
+    // 2. Calculate percentages
+    const percentages = rawData.map(count => ((count / totalCount) * 100).toFixed(1));
+    const bgColors = labels.map(l => emotionColors[l] || '#cccccc');
+
+    // 3. Destroy old chart if exists
+    if (emotionChartInstance) {
+        emotionChartInstance.destroy();
+    };
+
+    // 4. Create New Chart
+    emotionChartInstance = new Chart(ctxChart, {
+        type: 'doughnut',
+        data: {
+            labels: labels.map(l => l.toUpperCase()),
+            datasets: [{
+                data: rawData,
+                backgroundColor: bgColors,
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    bottom: 8
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { 
+                        color: 'white',
+                        padding: 16,
+                        boxWidth: 12,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            const value = context.parsed;
+                            const percentage = percentages[context.dataIndex];
+                            return `${label} ${percentage}% (${value} total)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/*========== EXPORT ========== */
+function exportData(type) {
+    if (sessionLog.size === 0) {
+        alert("No data collected yet! Go to Dashboard and start logging.");
+        return;
+    }
+
+    let content = "Timestamp, Emotion, Confidence\n";
+    let current = sessionLog.head;
+    while(current) {
+        content += `${current.data.timestamp.toISOString()}, ${current.data.label}, ${current.data.confidence}\n`;
+        current = current.next;
+    }
+
+    let filename = (type === 'psych') ? "clinical_data_log.csv" : "emotion_log.csv";
+
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url  = window.URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    alert(`Data exported successfully as ${filename}!`);
 }
 
 /*========== INIT ========== */
