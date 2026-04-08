@@ -4,6 +4,7 @@ import base64
 import webbrowser
 import threading
 import sys
+import urllib.request
 
 import cv2
 import numpy as np
@@ -32,6 +33,7 @@ class EmotionDetector:
 
         # ── 1. Mediapipe ───────────────────────────
         self.face_mesh              = None
+        self.face_landmarker        = None
         self.mediapipe_available    = False
         self.mediapipe_init_error   = None
 
@@ -41,7 +43,7 @@ class EmotionDetector:
                 self.face_mesh    = self.mp_face_mesh.FaceMesh(
                     static_image_mode=False,
                     max_num_faces=1,
-                    refine_landmarks=True,
+                    refine_landmarks=False,
                     min_detection_confidence=0.5,
                 )
                 self.mediapipe_available = True
@@ -50,7 +52,35 @@ class EmotionDetector:
                 self.mediapipe_init_error = str(e)
                 print(f"⚠️ Mediapipe failed to init: {e}")
         else:
-            print("❌ mp.solutions not found — Mediapipe disabled.")
+            # mediapipe>=0.10.33 may ship Tasks API without exposing legacy mp.solutions
+            model_path = os.path.join(self.model_dir, "face_landmarker.task")
+            model_url = (
+                "https://storage.googleapis.com/mediapipe-models/"
+                "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+            )
+            try:
+                if not os.path.exists(model_path):
+                    print("ℹ️ Downloading FaceLandmarker task model...")
+                    urllib.request.urlretrieve(model_url, model_path)
+
+                from mediapipe.tasks.python import BaseOptions
+                from mediapipe.tasks.python import vision
+
+                options = vision.FaceLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=model_path),
+                    running_mode=vision.RunningMode.IMAGE,
+                    num_faces=1,
+                    min_face_detection_confidence=0.5,
+                    min_face_presence_confidence=0.5,
+                    min_tracking_confidence=0.5,
+                )
+                self.face_landmarker = vision.FaceLandmarker.create_from_options(options)
+                self.mediapipe_available = True
+                print("✅ Mediapipe Tasks FaceLandmarker initialized.")
+            except Exception as e:
+                self.mediapipe_init_error = str(e)
+                print(f"⚠️ Mediapipe Tasks init failed: {e}")
+                print("ℹ️ Falling back to Dlib-only face detection.")
 
         # ── 2. Dlib ───────────────────────────
         dlib_fname = "shape_predictor_68_face_landmarks.dat"
@@ -75,6 +105,7 @@ class EmotionDetector:
                 print(f"⚠️ Dlib predictor failed: {e}")
         else:
             print("⚠️ Dlib .dat file not found.")
+            print("\nDownloading dlib's 68-point predictor...")
 
         # ── 3. Load ML Models ───────────────────────────
         print(f"📂 Loading models from: {self.model_dir}")
@@ -94,11 +125,11 @@ class EmotionDetector:
 
                     num_features = self.resnet.fc.in_features
                     self.resnet.fc = torch.nn.Sequential(
-                        torch.nn.Dropout(0.3),              # resnet.fc.0
-                        torch.nn.Linear(num_features, 256), # resnet.fc.1
-                        torch.nn.ReLU(),                    # resnet.fc.2
-                        torch.nn.Dropout(0.5),              # resnet.fc.3
-                        torch.nn.Linear(256, num_classes)   # resnet.fc.4
+                        torch.nn.Linear(num_features, 256),
+                        torch.nn.BatchNorm1d(256),
+                        torch.nn.ReLU(),
+                        torch.nn.Dropout(0.4),
+                        torch.nn.Linear(256, num_classes)
                     )
                 
                 def forward(self, x):
@@ -110,7 +141,8 @@ class EmotionDetector:
             # Load saved weights into the architecture
             checkpoint = torch.load(
                 os.path.join(self.model_dir, 'best_resnet_model.pth'),
-                map_location=self.device
+                map_location=self.device,
+                weights_only=False
             )
 
             # Log checkpoint metadata at startup
@@ -136,12 +168,12 @@ class EmotionDetector:
 
             # B. CatBoost
             self.cat_model = CatBoostClassifier(verbose=0)
-            self.cat_model.load_model(os.path.join(self.model_dir, 'catboost_fer.cbm'))
+            self.cat_model.load_model(os.path.join(self.model_dir, 'catboost_landmarks_model.cbm'))
             print("✅ CatBoost loaded.")
 
             # C. Meta-classifier
             self.meta_model = joblib.load(
-                os.path.join(self.model_dir, "meta_classifier.pkl")
+                os.path.join(self.model_dir, "meta_learner.pkl")
             )
             print("✅ Meta-classifier loaded")
         
@@ -150,18 +182,18 @@ class EmotionDetector:
             raise   # stops startup immediately instead of running with no models loaded
 
         # ── 4. Temperature Scaling ───────────────────────────
-        temp_path = os.path.join(self.model_dir, 'temperatures.json')
+        temp_path = os.path.join(self.model_dir, 'optimal_temperature.json')
         if os.path.exists(temp_path):
             with open(temp_path, 'r') as f:
                 temps = json.load(f)
-            self.T_cnn      = float(temps.get("T_cnn",      1.0))
-            self.T_catboost = float(temps.get("T_catboost", 1.0))
+            self.T_cnn      = float(temps.get("optimal_temperature",      1.0))
+            self.T_catboost = float(temps.get("optimal_temperature", 1.0))
             print(f"✅ Temperature scaling loaded - "
-                  f"T_cnn={self.T_cnn:.1f}, T_catboost={self.T_catboost:.1f}")
+                  f"T_cnn={self.T_cnn:.4f}, T_catboost={self.T_catboost:.4f}")
         else:
             self.T_cnn      = 1.0
             self.T_catboost = 1.0
-            print("ℹ️ No temperatures.json found - "
+            print("ℹ️ No optimal_temperature.json found - "
                   "temperature scaling disabled (T=1.0 no-op).")
     
     # ── Helpers ───────────────────────────
@@ -188,6 +220,23 @@ class EmotionDetector:
             probs  = torch.softmax(logits, dim=1)   # normalize to probabilities
             return probs.cpu().numpy()              # → numpy (1, n_classes)
 
+    def _extract_mp_landmarks(self, results_mp):
+        """
+        Return normalized landmarks for either API shape:
+        - Legacy: results.multi_face_landmarks[0].landmark
+        - Tasks:  results.face_landmarks[0]
+        """
+        if not results_mp:
+            return []
+
+        if hasattr(results_mp, 'multi_face_landmarks') and results_mp.multi_face_landmarks:
+            return results_mp.multi_face_landmarks[0].landmark
+
+        if hasattr(results_mp, 'face_landmarks') and results_mp.face_landmarks:
+            return results_mp.face_landmarks[0]
+
+        return []
+
     def _extract_geometric_features(
             self, img_rgb: np.ndarray, face_rect: list, results_mp
     ) -> pd.DataFrame:
@@ -205,9 +254,10 @@ class EmotionDetector:
         if self.dlib_available and self.predictor:
             try:
                 shape = self.predictor(gray, dlib_rect)
+                h_img, w_img = gray.shape[:2]
                 for k in range(68):
-                    row[f'dlib_x{k}'] = shape.part(k).x
-                    row[f'dlib_y{k}'] = shape.part(k).y
+                    row[f'dlib_x{k}'] = shape.part(k).x / w_img
+                    row[f'dlib_y{k}'] = shape.part(k).y / h_img
             except Exception:
                 for k in range(68):
                     row[f'dlib_x{k}'] = 0
@@ -217,19 +267,52 @@ class EmotionDetector:
                 row[f'dlib_x{k}'] = 0
                 row[f'dlib_y{k}'] = 0
         
-        # ── MediaPipe 478 landmarks ───────────────────────────
-        if results_mp and results_mp.multi_face_landmarks:
-            landmarks = results_mp.multi_face_landmarks[0].landmark
+        # ── MediaPipe 468 landmarks ───────────────────────────
+        landmarks = self._extract_mp_landmarks(results_mp)
+        if landmarks:
             for k, lm in enumerate(landmarks):
                 row[f'mp_x{k}'] = lm.x
                 row[f'mp_y{k}'] = lm.y
                 row[f'mp_z{k}'] = lm.z
         else:
-            for k in range(478):
+            for k in range(468):
                 row[f'mp_x{k}'] = 0
                 row[f'mp_y{k}'] = 0
                 row[f'mp_z{k}'] = 0
         
+        # Add 17 engineered distance features
+        dlib_pts = np.array([
+            [row.get(f'dlib_x{k}', 0), row.get(f'dlib_y{k}', 0)]
+            for k in range(68)
+        ])
+        if not np.all(dlib_pts == 0):
+            lew = np.linalg.norm(dlib_pts[36] - dlib_pts[39])   # left_eye_width
+            rew = np.linalg.norm(dlib_pts[42] - dlib_pts[45])   # right_eye_width
+            mw  = np.linalg.norm(dlib_pts[48] - dlib_pts[54])   # mouth_width
+            mh  = np.linalg.norm(dlib_pts[51] - dlib_pts[57])   # mouth_height
+            lbh = np.linalg.norm(dlib_pts[19] - dlib_pts[37])   # left_brow_height
+            rbh = np.linalg.norm(dlib_pts[24] - dlib_pts[44])   # right_brow_height
+            leh = np.linalg.norm(dlib_pts[37] - dlib_pts[41])   # left_eye_height
+            reh = np.linalg.norm(dlib_pts[43] - dlib_pts[47])   # right_eye_height
+            mnd = np.linalg.norm(dlib_pts[33] - dlib_pts[51])   # mouth_nose_distance
+            jw  = np.linalg.norm(dlib_pts[0]  - dlib_pts[16])   # jaw_width
+            fh  = np.linalg.norm(dlib_pts[8]  - dlib_pts[27])   # face_height
+            distances = [
+                lew, rew, mw, mh, lbh, rbh, leh, reh, mnd,
+                mw  / (mh  + 1e-6),    # mouth_aspect
+                leh / (lew + 1e-6),    # eye_aspect
+                jw,
+                fh,
+                mh / (fh + 1e-6),      # mouth_openness
+                abs(lbh - rbh),        # brow_asymmetry
+                abs(leh - reh),        # eye_asymmetry
+                mnd / (fh + 1e-6)      # nose_mouth_ratio
+            ]
+        else:
+            distances = [0.0] * 17
+        
+        for i, val in enumerate(distances):
+            row[f'dist_{i}'] = val
         return pd.DataFrame([row])
     
     # ── Main inference entry-point ───────────────────────────
@@ -260,8 +343,8 @@ class EmotionDetector:
             # ── Face detection ───────────────────────────
             if self.face_mesh:
                 results_mp = self.face_mesh.process(img_rgb)
-                if results_mp.multi_face_landmarks:
-                    lms     = results_mp.multi_face_landmarks[0].landmark
+                lms = self._extract_mp_landmarks(results_mp)
+                if lms:
                     x_vals  = [lm.x * w for lm in lms]
                     y_vals  = [lm.y * h for lm in lms]
                     x_min   = max(0, min(x_vals))
@@ -270,10 +353,32 @@ class EmotionDetector:
                     y_max   = min(h, max(y_vals))
                     bbox    = [int(x_min), int(y_min),
                                int(x_max - x_min), int(y_max - y_min)]
+            elif self.face_landmarker:
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
+                results_mp = self.face_landmarker.detect(mp_image)
+                lms = self._extract_mp_landmarks(results_mp)
+                if lms:
+                    x_vals = [lm.x * w for lm in lms]
+                    y_vals = [lm.y * h for lm in lms]
+                    x_min = max(0, min(x_vals))
+                    x_max = min(w, max(x_vals))
+                    y_min = max(0, min(y_vals))
+                    y_max = min(h, max(y_vals))
+                    bbox = [int(x_min), int(y_min),
+                            int(x_max - x_min), int(y_max - y_min)]
             else:
                 faces = self.detector(img_rgb, 0)
                 if not faces:
                     return NO_FACE
+                face = faces[0]
+                x1 = max(0, int(face.left()))
+                y1 = max(0, int(face.top()))
+                x2 = min(w, int(face.right()))
+                y2 = min(h, int(face.bottom()))
+                bbox = [x1, y1, max(0, x2 - x1), max(0, y2 - y1)]
+
+            if not bbox or bbox[2] <= 0 or bbox[3] <= 0:
+                return NO_FACE
             
             # ── Crop face ───────────────────────────
             x, y, wb, hb = bbox
@@ -283,8 +388,8 @@ class EmotionDetector:
             
             # ── Extract landmarks for frontend drawing ───────────────────────────
             landmarks_out = []
-            if results_mp and results_mp.multi_face_landmarks:
-                lms = results_mp.multi_face_landmarks[0].landmark
+            lms = self._extract_mp_landmarks(results_mp)
+            if lms:
                 landmarks_out = [
                     [int(lm.x * w), int(lm.y * h)]
                     for lm in lms
@@ -296,8 +401,8 @@ class EmotionDetector:
             )
 
             # ── Base model predictions ───────────────────────────
-            cnn_probs_raw = self._predict_cnn(face_img)                 # (1, 6) PyTorch
-            cat_probs_raw = self.cat_model.predict_proba(geo_features)  # (1, 6)
+            cnn_probs_raw = self._predict_cnn(face_img)                 # (1, 7) PyTorch
+            cat_probs_raw = self.cat_model.predict_proba(geo_features)  # (1, 7)
 
             # ── Temperature scaling (no-op when T=1.0) ───────────────────────────
             cnn_probs_cal = self._apply_temperature(cnn_probs_raw, self.T_cnn)
