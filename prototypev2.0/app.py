@@ -186,13 +186,11 @@ class EmotionDetector:
         if os.path.exists(temp_path):
             with open(temp_path, 'r') as f:
                 temps = json.load(f)
-            self.T_cnn      = float(temps.get("optimal_temperature",      1.0))
-            self.T_catboost = float(temps.get("optimal_temperature", 1.0))
+            self.T_ensemble      = float(temps.get("optimal_temperature",      1.0))
             print(f"✅ Temperature scaling loaded - "
-                  f"T_cnn={self.T_cnn:.4f}, T_catboost={self.T_catboost:.4f}")
+                  f"T_ensemble={self.T_ensemble:.4f}")
         else:
-            self.T_cnn      = 1.0
-            self.T_catboost = 1.0
+            self.T_ensemble      = 1.0
             print("ℹ️ No optimal_temperature.json found - "
                   "temperature scaling disabled (T=1.0 no-op).")
     
@@ -404,20 +402,26 @@ class EmotionDetector:
             cnn_probs_raw = self._predict_cnn(face_img)                 # (1, 7) PyTorch
             cat_probs_raw = self.cat_model.predict_proba(geo_features)  # (1, 7)
 
-            # ── Temperature scaling (no-op when T=1.0) ───────────────────────────
-            cnn_probs_cal = self._apply_temperature(cnn_probs_raw, self.T_cnn)
-            cat_probs_cal = self._apply_temperature(cat_probs_raw, self.T_catboost)
+            
+            # ── Use RAW probabilities (no per-model calibration)
+            cnn_probs = cnn_probs_raw
+            cat_probs = cat_probs_raw
 
             # ── CNN-only result (for comparison mode) ───────────────────────────
-            cnn_idx    = int(np.argmax(cnn_probs_cal[0]))
+            cnn_idx    = int(np.argmax(cnn_probs[0]))
             cnn_result = {
                 "label":    self.EMOTIONS[cnn_idx],
-                "confidence": float(cnn_probs_cal[0][cnn_idx]),
+                "confidence": float(cnn_probs[0][cnn_idx]),
             }
 
             # ── Ensemble via meta-classifier ───────────────────────────
-            stacked     = np.hstack((cnn_probs_cal, cat_probs_cal)) # (1, 12)
-            final_dist  = self.meta_model.predict_proba(stacked)[0] # (6,)
+            stacked     = np.hstack((cnn_probs, cat_probs)) # (1, 14)
+            final_probs = self.meta_model.predict_proba(stacked)    # shape (1, 7)
+            
+            # Apply Final temperature scaling
+            final_probs = self._apply_temperature(final_probs, self.T_ensemble);
+            final_dist  = final_probs[0] # (7,)
+            
             ensemble_idx = int(np.argmax(final_dist))
 
             ensemble_result = {
