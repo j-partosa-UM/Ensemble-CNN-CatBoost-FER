@@ -239,7 +239,7 @@ class SessionLog {
 
 const sessionLog = new SessionLog();
 
-function appendSessionLog(label, confidence, inferenceMs) {
+function appendSessionLog(label, confidence, inferenceMs) { // dat NaN occurs here
     if (!logList) return;
 
     // Remove the static placeholder on the very first real entry
@@ -249,8 +249,11 @@ function appendSessionLog(label, confidence, inferenceMs) {
         placeholderRemoved = true;
     }
 
-    // Timestamp e.g. "14:23:07"
-    const time = new Date().toLocaleTimeString([], {
+    // 1. Get the FULL current date and time
+    const now = new Date();
+
+    // 2. Format just the time for the HTML UI (e.g. "14:23:07")
+    const timeString = now.toLocaleTimeString([], {
         hour    : '2-digit',
         minute  : '2-digit',
         second  : '2-digit'
@@ -261,7 +264,7 @@ function appendSessionLog(label, confidence, inferenceMs) {
     entry.style.borderLeftColor = emotionColors[label];
     entry.style.background = 'rgba(255, 255, 255, 0.03)'
     entry.innerHTML = `
-        <span class="log-time">${time}</span>
+        <span class="log-time">${timeString}</span>
         <span class="log-emotion" style="color:${emotionColors[label] || '#ffffff'}">${label}</span>
         <span class="log-confidence">${(confidence * 100).toFixed(1)}%</span>
         <span class="log-inference">${inferenceMs} ms</span>
@@ -269,7 +272,9 @@ function appendSessionLog(label, confidence, inferenceMs) {
 
     // Newest entry at the top
     logList.insertBefore(entry, logList.firstChild);
-    sessionLog.prepend({ timestamp: time, label: label, confidence });
+    
+    // 3. THE FIX: Save the full 'now' Date object into the data log, NOT the time string!
+    sessionLog.prepend({ timestamp: now, label: label, confidence });
 
     // Trim oldest entries beyond the cap
     while (logList.children.length > MAX_LOG_ENTRIES) {
@@ -428,21 +433,50 @@ function renderChart() {
     });
 }
 
-/*========== EXPORT ========== */
+/*========== EXPORT /fixed error NaN/ ========== */  
 function exportData(type) {
     if (sessionLog.size === 0) {
         alert("No data collected yet! Go to Dashboard and start logging.");
         return;
     }
 
-    let content = "Timestamp, Emotion, Confidence\n";
+    let content = "Timestamp, Emotion, Confidence (Raw), Confidence (%)\n";
     let current = sessionLog.head;
+    
     while(current) {
-        content += `${current.data.timestamp.toISOString()}, ${current.data.label}, ${current.data.confidence}\n`;
+        let formattedTime = "Invalid_Time"; 
+        
+        // 1. Process the Timestamp
+        if (current.data && current.data.timestamp != null) {
+            let dateObj = new Date(current.data.timestamp);
+            
+            if (!isNaN(dateObj.getTime())) {
+                // THE TIME FIX: Forces "4/30/2026 4:10:56 PM" format for ALL exports
+                formattedTime = dateObj.toLocaleString('en-US', {
+                    month: 'numeric',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                }).replace(',', ''); // Removes the comma that JS adds by default
+            } else {
+                console.warn("Found invalid timestamp data:", current.data.timestamp);
+            }
+        }
+        
+        // 2. Calculate BOTH confidence formats
+        let rawConfidence = current.data.confidence; 
+        let percentConfidence = (current.data.confidence * 100).toFixed(1) + "%";
+        
+        // 3. Append row with all 4 columns
+        content += `${formattedTime}, ${current.data.label}, ${rawConfidence}, ${percentConfidence}\n`;
         current = current.next;
     }
 
-    let filename = (type === 'psych') ? "clinical_data_log.csv" : "emotion_log.csv";
+    // Assign different filenames based on the button clicked
+    let filename = (type === 'psych') ? "clinical_diagnosis_report.csv" : "raw_emotion_dataset.csv";
 
     const blob = new Blob([content], { type: 'text/csv' });
     const url  = window.URL.createObjectURL(blob);
@@ -450,6 +484,9 @@ function exportData(type) {
     a.href     = url;
     a.download = filename;
     a.click();
+    
+    window.URL.revokeObjectURL(url); 
+    
     alert(`Data exported successfully as ${filename}!`);
 }
 

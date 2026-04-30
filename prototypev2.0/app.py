@@ -20,6 +20,9 @@ from scipy.special import softmax
 from catboost import CatBoostClassifier
 from flask import Flask, render_template, request, jsonify
 
+# test for multi threading to reduce bottleneck
+import concurrent.futures
+
 # ─────────────── App Factory ───────────────
 app = Flask(__name__)
 
@@ -315,15 +318,25 @@ class EmotionDetector:
             row[f'dist_{i}'] = val
         return pd.DataFrame([row])
     
-    # ── Main inference entry-point ───────────────────────────
+
+   # ── Main inference entry-point ───────────────────────────
     def process_frame(self, base64_image: str, run_comparison: bool = False) -> dict:
         """
         Accepts a base64-encoded image string (data-URL or raw base 64).
         Returns a dict with emotion label, confidence, bbox, and optional
         per-model breakdown when run_comparison=True.
         """
-        NO_FACE = {"label": "No Face", "confidence": 0.0,
-                   "bbox": [], "landmarks": []}
+        # 1. Dynamic Helper for empty states
+        def get_empty_result(label_text="No Face"):
+            base = {"label": label_text, "confidence": 0.0, "bbox": [], "landmarks": []}
+            if run_comparison:
+                return {
+                    "ensemble": base,
+                    "cnn_only": base,
+                    "bbox": [],
+                    "landmarks": []
+                }
+            return base
         
         try:
             # ── Decode Image ───────────────────────────
@@ -332,8 +345,7 @@ class EmotionDetector:
             img      = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
 
             if img is None:
-                return {"label": "Error", "confidence": 0.0,
-                        "bbox": [], "landmarks": []}
+                return get_empty_result("Error")
             
             img_rgb    = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             h, w, _    = img.shape
@@ -347,30 +359,61 @@ class EmotionDetector:
                 if lms:
                     x_vals  = [lm.x * w for lm in lms]
                     y_vals  = [lm.y * h for lm in lms]
-                    x_min   = max(0, min(x_vals))
-                    x_max   = min(w, max(x_vals))
-                    y_min   = max(0, min(y_vals))
-                    y_max   = min(h, max(y_vals))
-                    bbox    = [int(x_min), int(y_min),
-                               int(x_max - x_min), int(y_max - y_min)]
+                    
+                    x_min_raw = min(x_vals)
+                    x_max_raw = max(x_vals)
+                    y_min_raw = min(y_vals)
+                    y_max_raw = max(y_vals)
+
+                    face_w = x_max_raw - x_min_raw
+                    face_h = y_max_raw - y_min_raw
+
+                    # Add 20% padding to sides/bottom, and 30% to the top for the forehead
+                    pad_x = int(face_w * 0.20)
+                    pad_y_top = int(face_h * 0.30) 
+                    pad_y_bot = int(face_h * 0.15)
+
+                    x_min = max(0, int(x_min_raw - pad_x))
+                    x_max = min(w, int(x_max_raw + pad_x))
+                    y_min = max(0, int(y_min_raw - pad_y_top))
+                    y_max = min(h, int(y_max_raw + pad_y_bot))
+
+                    bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+
             elif self.face_landmarker:
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
                 results_mp = self.face_landmarker.detect(mp_image)
                 lms = self._extract_mp_landmarks(results_mp)
                 if lms:
-                    x_vals = [lm.x * w for lm in lms]
-                    y_vals = [lm.y * h for lm in lms]
-                    x_min = max(0, min(x_vals))
-                    x_max = min(w, max(x_vals))
-                    y_min = max(0, min(y_vals))
-                    y_max = min(h, max(y_vals))
-                    bbox = [int(x_min), int(y_min),
-                            int(x_max - x_min), int(y_max - y_min)]
+                    x_vals  = [lm.x * w for lm in lms]
+                    y_vals  = [lm.y * h for lm in lms]
+                    
+                    x_min_raw = min(x_vals)
+                    x_max_raw = max(x_vals)
+                    y_min_raw = min(y_vals)
+                    y_max_raw = max(y_vals)
+
+                    face_w = x_max_raw - x_min_raw
+                    face_h = y_max_raw - y_min_raw
+
+                    # Add 20% padding to sides/bottom, and 30% to the top for the forehead
+                    pad_x = int(face_w * 0.20)
+                    pad_y_top = int(face_h * 0.30) 
+                    pad_y_bot = int(face_h * 0.15)
+
+                    x_min = max(0, int(x_min_raw - pad_x))
+                    x_max = min(w, int(x_max_raw + pad_x))
+                    y_min = max(0, int(y_min_raw - pad_y_top))
+                    y_max = min(h, int(y_max_raw + pad_y_bot))
+
+                    bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+
             else:
                 faces = self.detector(img_rgb, 0)
                 if not faces:
-                    return NO_FACE
+                    return get_empty_result("No Face")
                 face = faces[0]
+                # Dlib usually gives a decent head crop by default, so padding isn't as strictly necessary here.
                 x1 = max(0, int(face.left()))
                 y1 = max(0, int(face.top()))
                 x2 = min(w, int(face.right()))
@@ -378,13 +421,13 @@ class EmotionDetector:
                 bbox = [x1, y1, max(0, x2 - x1), max(0, y2 - y1)]
 
             if not bbox or bbox[2] <= 0 or bbox[3] <= 0:
-                return NO_FACE
+                return get_empty_result("No Face")
             
             # ── Crop face ───────────────────────────
             x, y, wb, hb = bbox
             face_img     = img_rgb[y:y + hb, x:x + wb]
             if face_img.size == 0:
-                return NO_FACE
+                return get_empty_result("No Face")
             
             # ── Extract landmarks for frontend drawing ───────────────────────────
             landmarks_out = []
@@ -395,14 +438,26 @@ class EmotionDetector:
                     for lm in lms
                 ]
             
-            # ── Geometric features for CatBoost ───────────────────────────
-            geo_features = self._extract_geometric_features(
-                img_rgb, bbox, results_mp
-            )
+            # ── 🔥 MULTITHREADING: Run CPU (Dlib) and GPU (PyTorch) simultaneously 🔥 ──
+            # We use ThreadPoolExecutor because Dlib and PyTorch both release the Python GIL.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                
+                # Thread 1: CPU-heavy Dlib & Math 
+                future_geo = executor.submit(
+                    self._extract_geometric_features, img_rgb, bbox, results_mp
+                )
+                
+                # Thread 2: GPU-heavy ResNet50
+                future_cnn = executor.submit(
+                    self._predict_cnn, face_img
+                )
+                
+                # Wait for both threads to finish and grab their results
+                geo_features  = future_geo.result()
+                cnn_probs_raw = future_cnn.result()
 
-            # ── Base model predictions ───────────────────────────
-            cnn_probs_raw = self._predict_cnn(face_img)                 # (1, 7) PyTorch
-            cat_probs_raw = self.cat_model.predict_proba(geo_features)  # (1, 7)
+            # ── CatBoost Prediction (Very fast, runs synchronously) ─────────────────
+            cat_probs_raw = self.cat_model.predict_proba(geo_features)
 
             # ── Temperature scaling (no-op when T=1.0) ───────────────────────────
             cnn_probs_cal = self._apply_temperature(cnn_probs_raw, self.T_cnn)
@@ -416,8 +471,8 @@ class EmotionDetector:
             }
 
             # ── Ensemble via meta-classifier ───────────────────────────
-            stacked     = np.hstack((cnn_probs_cal, cat_probs_cal)) # (1, 12)
-            final_dist  = self.meta_model.predict_proba(stacked)[0] # (6,)
+            stacked      = np.hstack((cnn_probs_cal, cat_probs_cal))
+            final_dist   = self.meta_model.predict_proba(stacked)[0]
             ensemble_idx = int(np.argmax(final_dist))
 
             ensemble_result = {
@@ -426,8 +481,9 @@ class EmotionDetector:
                 "bbox":       [int(v) for v in bbox],
                 "landmarks":  landmarks_out,
             }
-
+            
             # ── Return ───────────────────────────
+            # Ensure we return the nested format if comparison mode is active
             if run_comparison:
                 return {
                     "ensemble":  ensemble_result,
@@ -437,10 +493,10 @@ class EmotionDetector:
                 }
             
             return ensemble_result
+            
         except Exception as e:
             print(f"❌ process_frame error: {e}")
-            return {"label": "Error", "confidence": 0.0,
-                    "bbox": [], "landmarks": []}
+            return get_empty_result("Error")
         
 # ─────────────── Initialize detector (once at startup) ───────────────            
 detector = EmotionDetector(model_dir="models")
