@@ -43,7 +43,7 @@ class EmotionDetector:
                 self.face_mesh    = self.mp_face_mesh.FaceMesh(
                     static_image_mode=False,
                     max_num_faces=1,
-                    refine_landmarks=False,
+                    refine_landmarks=True,
                     min_detection_confidence=0.5,
                 )
                 self.mediapipe_available = True
@@ -119,17 +119,14 @@ class EmotionDetector:
                     super().__init__()
                     self.resnet = models.resnet50(weights=None)
 
-                    self.features = torch.nn.Sequential(
-                        *list(self.resnet.children())[:-1]
-                    )
-
                     num_features = self.resnet.fc.in_features
                     self.resnet.fc = torch.nn.Sequential(
-                        torch.nn.Linear(num_features, 256),
-                        torch.nn.BatchNorm1d(256),
-                        torch.nn.ReLU(),
+                        torch.nn.BatchNorm1d(num_features),
+                        torch.nn.Dropout(0.5),
+                        torch.nn.Linear(num_features, 512),
+                        torch.nn.ReLU(inplace=True),
                         torch.nn.Dropout(0.4),
-                        torch.nn.Linear(256, num_classes)
+                        torch.nn.Linear(512, num_classes)
                     )
                 
                 def forward(self, x):
@@ -186,11 +183,13 @@ class EmotionDetector:
         if os.path.exists(temp_path):
             with open(temp_path, 'r') as f:
                 temps = json.load(f)
-            self.T_ensemble      = float(temps.get("optimal_temperature",      1.0))
+            self.T_cnn      = float(temps.get("T_cnn",      1.0))
+            self.T_catboost = float(temps.get("T_catboost", 1.0))
             print(f"✅ Temperature scaling loaded - "
-                  f"T_ensemble={self.T_ensemble:.4f}")
+                  f"T_cnn={self.T_cnn:.4f}, T_catboost={self.T_catboost:.4f}")
         else:
-            self.T_ensemble      = 1.0
+            self.T_cnn      = 1.0
+            self.T_catboost = 1.0
             print("ℹ️ No optimal_temperature.json found - "
                   "temperature scaling disabled (T=1.0 no-op).")
     
@@ -238,80 +237,194 @@ class EmotionDetector:
     def _extract_geometric_features(
             self, img_rgb: np.ndarray, face_rect: list, results_mp
     ) -> pd.DataFrame:
-        """Build the feature row CatBoost expects (dlib 68 pts + MP 478 pts.)."""
-        row = {}
+        """
+        Build the 1610-feature row CatBoost expects.
+        Layout: dlib(136) + MP(1434) + MP_dist(20) + dlib_dist(20) = 1610.
+        Feature order mirrors the training feature-engineering cell.
+        """
+        h_img, w_img = img_rgb.shape[:2]
         gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
 
-        # ── Dlib 68 landmarks ───────────────────────────
+        DLIB_FEAT_DIM = 136
+        MP_FEAT_DIM = 1434   # 478 * 3
+        N_MP_DIST = 20
+        N_DLIB_DIST = 20
+
+        # ── dlib 68 landmarks (normalized) ──────────────────────────────────────
         dlib_rect = dlib.rectangle(
-            int(face_rect[0]),
-            int(face_rect[1]),
+            int(face_rect[0]), int(face_rect[1]),
             int(face_rect[0] + face_rect[2]),
             int(face_rect[1] + face_rect[3]),
         )
+        dlib_xy = np.zeros((68, 2), dtype=np.float32)
         if self.dlib_available and self.predictor:
             try:
                 shape = self.predictor(gray, dlib_rect)
-                h_img, w_img = gray.shape[:2]
                 for k in range(68):
-                    row[f'dlib_x{k}'] = shape.part(k).x / w_img
-                    row[f'dlib_y{k}'] = shape.part(k).y / h_img
+                    dlib_xy[k, 0] = shape.part(k).x / max(w_img, 1)
+                    dlib_xy[k, 1] = shape.part(k).y / max(h_img, 1)
             except Exception:
-                for k in range(68):
-                    row[f'dlib_x{k}'] = 0
-                    row[f'dlib_y{k}'] = 0
-        else:
-            for k in range(68):
-                row[f'dlib_x{k}'] = 0
-                row[f'dlib_y{k}'] = 0
-        
-        # ── MediaPipe 468 landmarks ───────────────────────────
+                pass
+
+        # Flatten dlib first to preserve training order.
+        dlib_raw = dlib_xy.reshape(-1)
+
+        # ── MP 478 landmarks (x, y, z) ─────────────────────────────────────────
         landmarks = self._extract_mp_landmarks(results_mp)
+        n_mp = 478
+        mp_xyz = np.zeros((n_mp, 3), dtype=np.float32)
         if landmarks:
-            for k, lm in enumerate(landmarks):
-                row[f'mp_x{k}'] = lm.x
-                row[f'mp_y{k}'] = lm.y
-                row[f'mp_z{k}'] = lm.z
-        else:
-            for k in range(468):
-                row[f'mp_x{k}'] = 0
-                row[f'mp_y{k}'] = 0
-                row[f'mp_z{k}'] = 0
-        
-        # Add 17 engineered distance features
-        dlib_pts = np.array([
-            [row.get(f'dlib_x{k}', 0), row.get(f'dlib_y{k}', 0)]
-            for k in range(68)
-        ])
-        if not np.all(dlib_pts == 0):
-            lew = np.linalg.norm(dlib_pts[36] - dlib_pts[39])   # left_eye_width
-            rew = np.linalg.norm(dlib_pts[42] - dlib_pts[45])   # right_eye_width
-            mw  = np.linalg.norm(dlib_pts[48] - dlib_pts[54])   # mouth_width
-            mh  = np.linalg.norm(dlib_pts[51] - dlib_pts[57])   # mouth_height
-            lbh = np.linalg.norm(dlib_pts[19] - dlib_pts[37])   # left_brow_height
-            rbh = np.linalg.norm(dlib_pts[24] - dlib_pts[44])   # right_brow_height
-            leh = np.linalg.norm(dlib_pts[37] - dlib_pts[41])   # left_eye_height
-            reh = np.linalg.norm(dlib_pts[43] - dlib_pts[47])   # right_eye_height
-            mnd = np.linalg.norm(dlib_pts[33] - dlib_pts[51])   # mouth_nose_distance
-            jw  = np.linalg.norm(dlib_pts[0]  - dlib_pts[16])   # jaw_width
-            fh  = np.linalg.norm(dlib_pts[8]  - dlib_pts[27])   # face_height
-            distances = [
-                lew, rew, mw, mh, lbh, rbh, leh, reh, mnd,
-                mw  / (mh  + 1e-6),    # mouth_aspect
-                leh / (lew + 1e-6),    # eye_aspect
-                jw,
-                fh,
-                mh / (fh + 1e-6),      # mouth_openness
-                abs(lbh - rbh),        # brow_asymmetry
-                abs(leh - reh),        # eye_asymmetry
-                mnd / (fh + 1e-6)      # nose_mouth_ratio
+            use_n = min(len(landmarks), n_mp)
+            for k in range(use_n):
+                mp_xyz[k, 0] = float(landmarks[k].x)
+                mp_xyz[k, 1] = float(landmarks[k].y)
+                mp_xyz[k, 2] = float(getattr(landmarks[k], 'z', 0.0))
+
+        # Flatten MP second to preserve training order.
+        mp_raw = mp_xyz.reshape(-1)
+
+        # MP landmark indices — mirrors training code exactly
+        MP_IDX = {
+            'left_eye_outer':   33,
+            'left_eye_inner':   133,
+            'left_eye_top':     159,
+            'left_eye_bottom':  145,
+            'right_eye_inner':  362,
+            'right_eye_outer':  263,
+            'right_eye_top':    386,
+            'right_eye_bottom': 374,
+            'left_brow_peak':   70,
+            'right_brow_peak':  299,
+            'mouth_left':       61,
+            'mouth_right':      291,
+            'mouth_top':        0,
+            'mouth_bottom':     17,
+            'nose_tip':         1,
+            'chin':             152,
+            'jaw_left':         234,
+            'jaw_right':        454,
+            'lower_lip_bottom': 16,
+            'left_eye_center':  468,
+            'right_eye_center': 473,
+            'upper_lip_top':    267,
+        }
+
+
+        # ── 20 MP-derived distance features — mirrors training ─────────────────
+        def pt(key):
+            idx = MP_IDX[key]
+            return np.array([mp_xyz[idx, 0], mp_xyz[idx, 1]], dtype=np.float32)
+
+        mp_dist = np.zeros((N_MP_DIST,), dtype=np.float32)
+        if not np.all(mp_raw == 0):
+            left_eye_w   = np.linalg.norm(pt('left_eye_outer')  - pt('left_eye_inner'))
+            right_eye_w  = np.linalg.norm(pt('right_eye_inner') - pt('right_eye_outer'))
+            mouth_w      = np.linalg.norm(pt('mouth_left')      - pt('mouth_right'))
+            mouth_h      = np.linalg.norm(pt('mouth_top')       - pt('mouth_bottom'))
+            left_brow_h  = np.linalg.norm(pt('left_brow_peak')  - pt('left_eye_top'))
+            right_brow_h = np.linalg.norm(pt('right_brow_peak') - pt('right_eye_top'))
+            left_eye_h   = np.linalg.norm(pt('left_eye_top')    - pt('left_eye_bottom'))
+            right_eye_h  = np.linalg.norm(pt('right_eye_top')   - pt('right_eye_bottom'))
+            nose_mouth   = np.linalg.norm(pt('nose_tip')        - pt('mouth_top'))
+            face_h       = np.linalg.norm(pt('chin')            - pt('nose_tip'))
+
+            corner_l_y         = float(pt('mouth_left')[1])
+            corner_r_y         = float(pt('mouth_right')[1])
+            lip_center_y       = float(pt('mouth_top')[1])
+            mouth_corner_curve = ((corner_l_y + corner_r_y) / 2 - lip_center_y) / (face_h + 1e-6)
+
+            lid_exposure = ((left_eye_h + right_eye_h) / 2) / (face_h + 1e-6)
+            chin_y = float(pt('chin')[1])
+            lower_lip_y = float(pt('lower_lip_bottom')[1])
+            chin_to_lower_lip = abs(chin_y - lower_lip_y) / (face_h + 1e-6)
+
+            left_brow_to_eye = np.linalg.norm(pt('left_brow_peak') - pt('left_eye_center'))
+            right_brow_to_eye = np.linalg.norm(pt('right_brow_peak') - pt('right_eye_center'))
+            brow_to_eye_center = ((left_brow_to_eye + right_brow_to_eye) / 2) / (face_h + 1e-6)
+
+            upper_lip_raise = np.linalg.norm(pt('nose_tip') - pt('upper_lip_top')) / (face_h + 1e-6)
+
+            mp_dist[:] = [
+                left_eye_w,                                      # 0
+                right_eye_w,                                     # 1
+                mouth_w,                                         # 2
+                mouth_h,                                         # 3
+                left_brow_h,                                     # 4
+                right_brow_h,                                    # 5
+                left_eye_h,                                      # 6
+                right_eye_h,                                     # 7
+                mouth_w    / (mouth_h      + 1e-6),              # 8  mouth_aspect_ratio
+                left_eye_h / (left_eye_w   + 1e-6),              # 9  eye_aspect_ratio
+                mouth_h    / (face_h       + 1e-6),              # 10 mouth_openness
+                mouth_w    / (face_h       + 1e-6),              # 11 lip_tightness
+                left_brow_h  / (face_h     + 1e-6),              # 12 brow_raise_left
+                right_brow_h / (face_h     + 1e-6),              # 13 brow_raise_right
+                min(nose_mouth / (mouth_h  + 1e-6), 20.0),       # 14 nose_mouth_ratio
+                mouth_corner_curve,                              # 15
+                lid_exposure,                                    # 16
+                chin_to_lower_lip,                               # 17
+                brow_to_eye_center,                              # 18
+                upper_lip_raise,                                 # 19
             ]
-        else:
-            distances = [0.0] * 17
-        
-        for i, val in enumerate(distances):
-            row[f'dist_{i}'] = val
-        return pd.DataFrame([row])
+
+        # ── 20 dlib-derived distance features — mirrors training ───────────────
+        dlib_dist = np.zeros((N_DLIB_DIST,), dtype=np.float32)
+        if not np.all(dlib_raw == 0):
+            d = dlib_xy
+
+            left_eye_w   = np.linalg.norm(d[36] - d[39])
+            right_eye_w  = np.linalg.norm(d[42] - d[45])
+            mouth_w      = np.linalg.norm(d[48] - d[54])
+            mouth_h      = np.linalg.norm(d[51] - d[57])
+            left_brow_h  = np.linalg.norm(d[19] - d[37])
+            right_brow_h = np.linalg.norm(d[24] - d[44])
+            left_eye_h   = np.linalg.norm(d[37] - d[41])
+            right_eye_h  = np.linalg.norm(d[43] - d[47])
+            mouth_nose   = np.linalg.norm(d[33] - d[51])
+            jaw_w        = np.linalg.norm(d[0]  - d[16])
+            face_h       = np.linalg.norm(d[8]  - d[27])
+
+            mouth_corner_curve = ((d[48][1] + d[54][1]) / 2 - d[51][1]) / (face_h + 1e-6)
+            lid_exposure = ((left_eye_h + right_eye_h) / 2) / (face_h + 1e-6)
+            chin_to_lower_lip = abs(d[8][1] - d[57][1]) / (face_h + 1e-6)
+
+            left_eye_center = (d[37] + d[41]) / 2
+            right_eye_center = (d[43] + d[47]) / 2
+            left_brow_to_eye = np.linalg.norm(d[19] - left_eye_center)
+            right_brow_to_eye = np.linalg.norm(d[24] - right_eye_center)
+            brow_to_eye_center = ((left_brow_to_eye + right_brow_to_eye) / 2) / (face_h + 1e-6)
+
+            upper_lip_raise = np.linalg.norm(d[33] - d[51]) / (face_h + 1e-6)
+
+            dlib_dist[:] = [
+                left_eye_w,
+                right_eye_w,
+                mouth_w,
+                mouth_h,
+                left_brow_h,
+                right_brow_h,
+                left_eye_h,
+                right_eye_h,
+                mouth_nose,
+                mouth_w    / (mouth_h + 1e-6),
+                left_eye_h / (left_eye_w + 1e-6),
+                jaw_w,
+                face_h,
+                mouth_h / (face_h + 1e-6),
+                min(mouth_nose / (mouth_h + 1e-6), 20.0),
+                mouth_corner_curve,
+                lid_exposure,
+                chin_to_lower_lip,
+                brow_to_eye_center,
+                upper_lip_raise,
+            ]
+
+        # Final order must match training: dlib_raw | mp_raw | mp_dist | dlib_dist
+        feature_row = np.hstack([dlib_raw, mp_raw, mp_dist, dlib_dist]).astype(np.float32)
+        if feature_row.shape[0] != (DLIB_FEAT_DIM + MP_FEAT_DIM + N_MP_DIST + N_DLIB_DIST):
+            raise ValueError(f"Unexpected feature length: {feature_row.shape[0]} (expected 1610)")
+
+        return pd.DataFrame([feature_row])
     
     # ── Main inference entry-point ───────────────────────────
     def process_frame(self, base64_image: str, run_comparison: bool = False) -> dict:
@@ -403,25 +516,20 @@ class EmotionDetector:
             cat_probs_raw = self.cat_model.predict_proba(geo_features)  # (1, 7)
 
             
-            # ── Use RAW probabilities (no per-model calibration)
-            cnn_probs = cnn_probs_raw
-            cat_probs = cat_probs_raw
+            # ── Temperature scaling (no-op when T=1.0) ───────────────────────────
+            cnn_probs_cal = self._apply_temperature(cnn_probs_raw, self.T_cnn)
+            cat_probs_cal = self._apply_temperature(cat_probs_raw, self.T_catboost)
 
             # ── CNN-only result (for comparison mode) ───────────────────────────
-            cnn_idx    = int(np.argmax(cnn_probs[0]))
+            cnn_idx    = int(np.argmax(cnn_probs_cal[0]))
             cnn_result = {
                 "label":    self.EMOTIONS[cnn_idx],
-                "confidence": float(cnn_probs[0][cnn_idx]),
+                "confidence": float(cnn_probs_cal[0][cnn_idx]),
             }
 
             # ── Ensemble via meta-classifier ───────────────────────────
-            stacked     = np.hstack((cnn_probs, cat_probs)) # (1, 14)
-            final_probs = self.meta_model.predict_proba(stacked)    # shape (1, 7)
-            
-            # Apply Final temperature scaling
-            final_probs = self._apply_temperature(final_probs, self.T_ensemble);
-            final_dist  = final_probs[0] # (7,)
-            
+            stacked     = np.hstack((cnn_probs_cal, cat_probs_cal)) # (1, 12)
+            final_dist  = self.meta_model.predict_proba(stacked)[0] # (6,)
             ensemble_idx = int(np.argmax(final_dist))
 
             ensemble_result = {

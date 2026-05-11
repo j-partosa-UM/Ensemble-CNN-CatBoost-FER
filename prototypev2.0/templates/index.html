@@ -82,6 +82,27 @@
         <p>Overview of emotions detected in the current sessions</p>
     </div>
 
+    <!-- CAPTURE PANEL -->
+     <div class="analytics-container__captures">
+        <div class="captures-header">
+            <h3 class="captures-title">Top Captured Frames</h3>
+            <div class="captures-controls">
+                <label for="capture-interval">Interval</label>
+                <select id="capture-interval" onchange="updateCaptureInterval(this.value)">
+                    <option value="1">1 min</option>
+                    <option value="5" selected>5 min</option>
+                    <option value="10">10 min</option>
+                    <option value="15">15 min</option>
+                </select>
+            </div>
+        </div>
+        <div class="captures-grid" id="captures-grid">
+            <div class="capture-empty" id="captures-empty">
+                <p>No captures yet — start logging to collect frames</p>
+            </div>
+        </div>
+     </div>
+
     <div class="analytics-container__mid">
         <div class="chart-card">
             <h3>Emotion Distribution</h3>

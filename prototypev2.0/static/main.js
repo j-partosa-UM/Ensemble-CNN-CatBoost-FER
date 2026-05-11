@@ -28,6 +28,7 @@ function switchPage(link) {
 
     // Stop inference and reset button when switching pages
     stopInference();
+
     document.querySelectorAll('.start-button').forEach(btn => {
         btn.textContent = link === 'comparison' ? 'Start Comparison' : 'Start Logging'
     })
@@ -213,6 +214,7 @@ function handleDashboardResult(result, inferenceMs) {
     
     // Append to session log every prediction
     appendSessionLog(result.label, result.confidence, inferenceMs);
+    collectCandidate();
 }
 
 // Session log: one row per prediction, newest on top
@@ -335,12 +337,16 @@ function startInference() {
     if (isRunning) return;
     isRunning = true;
     inferenceTimer = setInterval(sendFrame, CONFIG.inferenceInterval);
+    captureTimer   = setInterval(captureFrame, captureIntervalMs);
+
+    setTimeout(() => captureFrame(), 3000);
 }
 
 function stopInference() {
     isRunning           = false;
     inferenceInFlight   = false;
     clearInterval(inferenceTimer);
+    clearInterval(captureTimer);
     lastResult = null;
 }
 
@@ -428,6 +434,126 @@ function renderChart() {
     });
 }
 
+/*========== FRAME CAPTURES ========== */
+let captureIntervalMs   = 5 * 60 * 1000;
+let captureTimer        = null;
+let captureBuffer       = [];           // rolling buffer of recent captures
+let candidateBuffer     = [];           // rolling candidates collected during interval
+const MAX_CAPTURES      = 7;
+const MIN_CONFIDENCE    = 0.55;         // only candidates above this threshold
+
+function updateCaptureInterval(minutes) {
+    captureIntervalMs = parseInt(minutes) * 60 * 1000;
+    if (isRunning) {
+        clearInterval(captureTimer);
+        captureTimer = setInterval(captureFrame, captureIntervalMs);
+    }
+}
+
+// Called every inference frame — collects candidates silently
+function collectCandidate() {
+    if (!isRunning || !lastResult || !videoStream) return;
+    if (video.readyState < 2) return;
+    if (lastResult.label === 'No Face' || lastResult.label === 'Error') return;
+    if (lastResult.confidence < MIN_CONFIDENCE) return;
+
+    // Draw current frame
+    const snap    = document.createElement('canvas');
+    snap.width    = CONFIG.captureWidth;
+    snap.height   = CONFIG.captureHeight;
+    const snapCtx = snap.getContext('2d');
+    snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
+
+    // Crop face bbox with padding
+    let dataUrl;
+    if (lastResult.bbox && lastResult.bbox.length === 4) {
+        const [bx, by, bw, bh] = lastResult.bbox;
+
+        const padX = Math.round(0.5 * bw);  // horizontal padding
+        const padY = Math.round(0.6 * bh); // vertical padding
+
+        const cx  = Math.max(0, bx - padX);
+        const cy  = Math.max(0, by - padY);
+        const cw  = Math.min(bw + 2 * padX, snap.width  - cx);
+        const ch  = Math.min(bh + 2 * padY, snap.height - cy);
+
+        const crop    = document.createElement('canvas');
+        crop.width    = cw;
+        crop.height   = ch;
+        crop.getContext('2d').drawImage(snap, cx, cy, cw, ch, 0, 0, cw, ch);
+        dataUrl = crop.toDataURL('image/jpeg', 0.8);
+    } else {
+        dataUrl = snap.toDataURL('image/jpeg', 0.8);
+    }
+
+    candidateBuffer.push({
+        dataUrl,
+        label      : lastResult.label,
+        confidence : lastResult.confidence,
+        time       : new Date().toLocaleTimeString([], {
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        }),
+        color: emotionColors[lastResult.label] || '#ffffff'
+    });
+}
+
+// Called every interval — picks top 5 unique from candidates
+function captureFrame() {
+    if (candidateBuffer.length === 0) return;
+
+    // Pick best (highest confidence) per unique emotion label
+    const bestPerEmotion = {};
+    candidateBuffer.forEach(entry => {
+        if (!bestPerEmotion[entry.label] ||
+            entry.confidence > bestPerEmotion[entry.label].confidence) {
+            bestPerEmotion[entry.label] = entry;
+        }
+    });
+
+    // Sort by confidence descending, take top MAX_CAPTURES
+    const top5 = Object.values(bestPerEmotion)
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, MAX_CAPTURES);
+
+    captureBuffer = top5;
+    candidateBuffer = [];   // reset for next interval
+    renderCaptures();
+}
+
+function renderCaptures() {
+    const grid  = document.getElementById('captures-grid');
+    const empty = document.getElementById('captures-empty');
+    if (!grid) return;
+
+    if (captureBuffer.length === 0) {
+        if (empty) empty.style.display = 'flex';
+        return;
+    }
+
+    if (empty) empty.style.display = 'none';
+
+    // Clear existing cards (keep empty placeholder in DOM)
+    grid.querySelectorAll('.capture-card').forEach(c => c.remove());
+
+    captureBuffer.forEach(entry => {
+        const card = document.createElement('div');
+        card.className = 'capture-card';
+        card.style.borderColor = entry.color + '55'; // subtle tint
+
+        card.innerHTML = `
+            <img src="${entry.dataUrl}" alt="${entry.label}" />
+            <span class="capture-card__label" style="color:${entry.color}">
+                ${entry.label}
+            </span>
+            <span class="capture-card__confidence">
+                ${(entry.confidence * 100).toFixed(1)}%
+            </span>
+            <span class="capture-card__time">${entry.time}</span>
+        `;
+        grid.appendChild(card);
+    });
+}
+
 /*========== EXPORT ========== */
 function exportData(type) {
     if (sessionLog.size === 0) {
@@ -435,22 +561,95 @@ function exportData(type) {
         return;
     }
 
-    let content = "Timestamp, Emotion, Confidence\n";
-    let current = sessionLog.head;
-    while(current) {
-        content += `${current.data.timestamp.toISOString()}, ${current.data.label}, ${current.data.confidence}\n`;
-        current = current.next;
+    if (type === 'csv') {
+        // Raw CSV
+        let content = "Timestamp,Emotion,Confidence\n";
+        let current = sessionLog.head;
+        while (current) {
+            content += `${current.data.timestamp},${current.data.label},${(current.data.confidence * 100).toFixed(2)}%\n`;
+            current = current.next;
+        }
+        downloadFile(content, 'emotion_log.csv');
+
+    } else if (type === 'psych') {
+        // Clinical log — structured, meaningful
+        const now       = new Date();
+        const dateStr   = now.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+        const timeStr   = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        // Aggregate stats
+        const counts    = {};
+        const confByEmo = {};
+        let current     = sessionLog.head;
+        let totalConf   = 0;
+
+        while (current) {
+            const { label, confidence } = current.data;
+            counts[label]    = (counts[label] || 0) + 1;
+            confByEmo[label] = (confByEmo[label] || []);
+            confByEmo[label].push(confidence);
+            totalConf += confidence;
+            current = current.next;
+        }
+
+        const total       = sessionLog.size;
+        const avgConf     = (totalConf / total * 100).toFixed(1);
+        const dominant    = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        const dominantPct = (dominant[1] / total * 100).toFixed(1);
+
+        // Build report
+        let content = '';
+        content += `CLINICAL FACIAL EXPRESSION ANALYSIS REPORT\n`;
+        content += `${'='.repeat(50)}\n\n`;
+        content += `Date:              ${dateStr}\n`;
+        content += `Time:              ${timeStr}\n`;
+        content += `Total Observations: ${total}\n`;
+        content += `Avg Confidence:    ${avgConf}%\n\n`;
+
+        content += `SESSION SUMMARY\n`;
+        content += `${'-'.repeat(50)}\n`;
+        content += `Dominant Emotion:  ${dominant[0]} (${dominantPct}% of session)\n\n`;
+
+        content += `EMOTION BREAKDOWN\n`;
+        content += `${'-'.repeat(50)}\n`;
+        content += `Emotion,Count,Percentage,Avg Confidence\n`;
+
+        Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .forEach(([emotion, count]) => {
+                const pct     = (count / total * 100).toFixed(1);
+                const avgC    = (confByEmo[emotion].reduce((a, b) => a + b, 0) / confByEmo[emotion].length * 100).toFixed(1);
+                content += `${emotion},${count},${pct}%,${avgC}%\n`;
+            });
+
+        content += `\nDETAILED OBSERVATION LOG\n`;
+        content += `${'-'.repeat(50)}\n`;
+        content += `Timestamp,Emotion,Confidence\n`;
+
+        current = sessionLog.head;
+        while (current) {
+            content += `${current.data.timestamp},${current.data.label},${(current.data.confidence * 100).toFixed(2)}%\n`;
+            current = current.next;
+        }
+
+        content += `\n${'='.repeat(50)}\n`;
+        content += `Generated by Ensemble CNN-CatBoost FER System\n`;
+        content += `For professional use only\n`;
+
+        downloadFile(content, 'clinical_data_log.txt');
     }
+}
 
-    let filename = (type === 'psych') ? "clinical_data_log.csv" : "emotion_log.csv";
-
-    const blob = new Blob([content], { type: 'text/csv' });
+// Helper to avoid repeating blob/download logic
+function downloadFile(content, filename) {
+    const blob = new Blob(["\ufeff" + content], { type: 'text/plain;charset=utf-8;' });
     const url  = window.URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
     a.download = filename;
     a.click();
-    alert(`Data exported successfully as ${filename}!`);
+    window.URL.revokeObjectURL(url);
+    alert(`Exported successfully as ${filename}!`);
 }
 
 /*========== INIT ========== */
