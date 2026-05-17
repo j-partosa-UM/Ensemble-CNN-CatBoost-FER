@@ -121,11 +121,10 @@ class EmotionDetector:
 
                     num_features = self.resnet.fc.in_features
                     self.resnet.fc = torch.nn.Sequential(
-                        torch.nn.BatchNorm1d(num_features),
-                        torch.nn.Dropout(0.5),
                         torch.nn.Linear(num_features, 512),
+                        torch.nn.BatchNorm1d(512),
+                        torch.nn.Dropout(0.5),
                         torch.nn.ReLU(inplace=True),
-                        torch.nn.Dropout(0.4),
                         torch.nn.Linear(512, num_classes)
                     )
                 
@@ -144,6 +143,7 @@ class EmotionDetector:
 
             # Log checkpoint metadata at startup
             print(f"ℹ️ Checkpoint epoch:     {checkpoint.get('epoch', 'N/A')}")
+            print(f"ℹ️ train accuracy:    {checkpoint.get('train_acc', 'N/A'):.2f}")
             print(f"ℹ️ Best val accuracy:    {checkpoint.get('best_val_acc', 'N/A'):.2f}")
             print(f"ℹ️ Epochs trained:       {checkpoint.get('epochs_trained', 'N/A')}")
 
@@ -523,8 +523,9 @@ class EmotionDetector:
             # ── CNN-only result (for comparison mode) ───────────────────────────
             cnn_idx    = int(np.argmax(cnn_probs_cal[0]))
             cnn_result = {
-                "label":    self.EMOTIONS[cnn_idx],
+                "label":      self.EMOTIONS[cnn_idx],
                 "confidence": float(cnn_probs_cal[0][cnn_idx]),
+                "probs":      {e: float(p) for e, p in zip(self.EMOTIONS, cnn_probs_cal[0])},
             }
 
             # ── Ensemble via meta-classifier ───────────────────────────
@@ -537,6 +538,7 @@ class EmotionDetector:
                 "confidence": float(final_dist[ensemble_idx]),
                 "bbox":       [int(v) for v in bbox],
                 "landmarks":  landmarks_out,
+                "probs":      {e: float(p) for e, p in zip(self.EMOTIONS, final_dist)},
             }
 
             # ── Return ───────────────────────────
@@ -606,5 +608,10 @@ def predict():
 
 # ─────────────── Entry point ───────────────
 if __name__ == "__main__":
-    threading.Timer(1.2, lambda: webbrowser.open("http://127.0.0.1:5000")).start()
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    from livereload import Server
+    threading.Timer(1.2, lambda: webbrowser.open("http://127.0.0.1:5500")).start()
+
+    server = Server(app.wsgi_app)
+
+    server.serve(host='0.0.0.0', port=5500, debug=False)
+    # app.run(debug=False, host='0.0.0.0', port=5000)

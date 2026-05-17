@@ -1,4 +1,4 @@
 {
-  "cnn_temperature": 0.75,
+  "cnn_temperature": 1.0,
   "catboost_temperature": 0.75
 }
