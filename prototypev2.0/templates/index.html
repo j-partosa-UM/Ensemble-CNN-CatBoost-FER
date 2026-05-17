@@ -22,6 +22,12 @@
                 Entries will show here...
             </div>
         </section>
+        <div class="emotion-bars-panel" id="dash-emotion-bars">
+            <h4 class="emotion-bars-title">Live Probabilities</h4>
+            <div class="emotion-bars-list" id="dash-bars-list">
+                <span class="emotion-bars-placeholder">Start loggin to see probabilities</span>
+            </div>
+        </div>
     </div>
 
     <div id="dash-content__emotion-legend" class="emotion-legend-panel">
@@ -48,12 +54,22 @@
             <h3 class="result-panel-header">CNN (Baseline)</h3>
             <div class="emotion-label">--</div>
             <div class="emotion-confidence">0.0% | -- ms</div>
+            <div class="emotion-bars-panel comp-bars" id="cnn-emotion-bars">
+                <div class="emotion-bars-list" id="cnn-bars-list">
+                    <span class="emotion-bars-placeholder">Start comparison</span>
+                </div>
+            </div>
         </div>
 
         <div class="comp-content__result-panel" id="ensemble-log">
             <h3 class="result-panel-header">CNN-CatBoost (Proposed)</h3>
             <div class="emotion-label">--</div>
             <div class="emotion-confidence">0.0% | -- ms</div>
+            <div class="emotion-bars-panel comp-bars" id="ensemble-emotion-bars">
+                <div class="emotion-bars-list" id="ensemble-bars-list">
+                    <span class="emotion-bars-placeholder">Start comparison</span>
+                </div>
+            </div>
         </div>
     </div>
 

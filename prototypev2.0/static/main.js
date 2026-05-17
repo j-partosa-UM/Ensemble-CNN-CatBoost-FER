@@ -154,6 +154,34 @@ const emotionColors = {
     Neutral     : '#55AAFF'
 };
 
+const EMOTION_ORDER = ['Happy', 'Neutral', 'Sad', 'Fear', 'Angry', 'Disgust', 'Surprise']
+
+function renderEmotionBars(containerId, probs) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if(!probs) {
+        container.innerHTML = '<span class="emotion-bars-placeholder">No data</span>';
+        return;
+    }
+
+    container.innerHTML = EMOTION_ORDER.map(emotion => {
+        const val = probs[emotion] ?? 0;
+        const pct = (val * 100).toFixed(1);
+        const color = emotionColors[emotion] || '#aaa';
+        return `
+            <div class="emotion-bar-row">
+                <span class="emotion-bar-label">${emotion}</span>
+                <div class="emotion-bar-track">
+                    <div class="emotion-bar-fill" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <span class="emotion-bar-pct">${pct}%</span>
+            </div>`;
+    }).join('');
+}
+
+
+
 async function sendFrame() {
     if (inferenceInFlight) return;
     if (!isRunning || !videoStream || video.readyState < 2) return;
@@ -211,6 +239,8 @@ function handleDashboardResult(result, inferenceMs) {
     emotionDisplay.textContent = result.label;
     confidenceDisplay.textContent = 
         (result.confidence * 100).toFixed(1) + '%';
+
+    renderEmotionBars('dash-bars-list', result.probs || null);
     
     // Append to session log every prediction
     appendSessionLog(result.label, result.confidence, inferenceMs);
@@ -297,11 +327,15 @@ function handleComparisonResult(result, inferenceMs) {
         ? `${(ensemble.confidence * 100).toFixed(1)}% | ${inferenceMs} ms`
         : '0.0% | -- ms';
     
+    renderEmotionBars('ensemble-bars-list', ensemble?.probs || null);
+
     // CNN baseline panel (#cnn-log)
     if (cnnLabel)       cnnLabel.textContent = cnn?.label ?? '--';
     if (cnnConfidence)  cnnConfidence.textContent = cnn
         ? `${(cnn.confidence * 100).toFixed(1)}% | ${inferenceMs} ms`
         : '0.0% | --ms';
+
+    renderEmotionBars('cnn-bars-list', cnn?.probs || null);
 }
 
 /*========== DRAW ========== */
