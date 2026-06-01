@@ -22,6 +22,12 @@
                 Entries will show here...
             </div>
         </section>
+        <div class="emotion-bars-panel" id="dash-emotion-bars">
+            <h4 class="emotion-bars-title">Live Probabilities</h4>
+            <div class="emotion-bars-list" id="dash-bars-list">
+                <span class="emotion-bars-placeholder">Start logging to see probabilities</span>
+            </div>
+        </div>
     </div>
 
     <div id="dash-content__emotion-legend" class="emotion-legend-panel">
@@ -48,12 +54,22 @@
             <h3 class="result-panel-header">CNN (Baseline)</h3>
             <div class="emotion-label">--</div>
             <div class="emotion-confidence">0.0% | -- ms</div>
+            <div class="emotion-bars-panel comp-bars" id="cnn-emotion-bars">
+                <div class="emotion-bars-list" id="cnn-bars-list">
+                    <span class="emotion-bars-placeholder">Start comparison</span>
+                </div>
+            </div>
         </div>
 
         <div class="comp-content__result-panel" id="ensemble-log">
             <h3 class="result-panel-header">CNN-CatBoost (Proposed)</h3>
             <div class="emotion-label">--</div>
             <div class="emotion-confidence">0.0% | -- ms</div>
+            <div class="emotion-bars-panel comp-bars" id="ensemble-emotion-bars">
+                <div class="emotion-bars-list" id="ensemble-bars-list">
+                    <span class="emotion-bars-placeholder">Start comparison</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -81,6 +97,27 @@
         <h3>Session Analytics</h3>
         <p>Overview of emotions detected in the current sessions</p>
     </div>
+
+    <!-- CAPTURE PANEL -->
+     <div class="analytics-container__captures">
+        <div class="captures-header">
+            <h3 class="captures-title">Top Captured Frames</h3>
+            <div class="captures-controls">
+                <label for="capture-interval">Interval</label>
+                <select id="capture-interval" onchange="updateCaptureInterval(this.value)">
+                    <option value="1">1 min</option>
+                    <option value="5" selected>5 min</option>
+                    <option value="10">10 min</option>
+                    <option value="15">15 min</option>
+                </select>
+            </div>
+        </div>
+        <div class="captures-grid" id="captures-grid">
+            <div class="capture-empty" id="captures-empty">
+                <p>No captures yet — start logging to collect frames</p>
+            </div>
+        </div>
+     </div>
 
     <div class="analytics-container__mid">
         <div class="chart-card">
