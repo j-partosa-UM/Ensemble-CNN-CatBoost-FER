@@ -2,11 +2,11 @@ const hamburgerBtn = document.getElementById('hamburger-btn');
 const mobileNav = document.getElementById('mobile-nav');
 
 const video = document.getElementById('video-feed-dash');
-const emotionDisplay    = document.getElementById('emotion-display');
+const emotionDisplay = document.getElementById('emotion-display');
 const confidenceDisplay = document.getElementById('confidence-display');
 const canvasElements = {
-    dashboard   : document.getElementById('video-canvas-dash'),
-    comparison  : document.getElementById('video-canvas-comp')
+    dashboard: document.getElementById('video-canvas-dash'),
+    comparison: document.getElementById('video-canvas-comp')
 }
 let canvas = null;
 let ctx = null;
@@ -20,6 +20,8 @@ function switchPage(link) {
 
     document.getElementById(link).classList.add('active');
     document.getElementById(link + '-page').classList.add('active');
+
+    document.body.classList.toggle('model-info-active', link === 'model-info');
 
     // Sync mobile nav active state
     document.querySelectorAll('.mobile-nav-list .nav-link').forEach(el => {
@@ -37,10 +39,15 @@ function switchPage(link) {
         return
     }
 
+    if (link === 'model-info') {
+         if (window._loadModelInfoMetrics) window._loadModelInfoMetrics();
+         return;
+    }
+
     if (canvasElements[link]) {
         canvas = canvasElements[link];
         initCanvas();
-        ctx = canvas.getContext('2d');  
+        ctx = canvas.getContext('2d');
     }
 }
 
@@ -51,13 +58,13 @@ function closeMobileNav() {
     hamburgerBtn.setAttribute('aria-expanded', false);
 }
 
-hamburgerBtn.addEventListener('click', ()=> {
+hamburgerBtn.addEventListener('click', () => {
     const isOpen = mobileNav.classList.toggle('open');
     hamburgerBtn.classList.toggle('open', isOpen);
     hamburgerBtn.setAttribute('aria-expanded', isOpen);
 });
 
-document.addEventListener('click', (e)=> {
+document.addEventListener('click', (e) => {
     if (!hamburgerBtn.contains(e.target) && !mobileNav.contains(e.target)) {
         closeMobileNav();
     }
@@ -65,13 +72,13 @@ document.addEventListener('click', (e)=> {
 
 /*========== CONFIG ========== */
 const CONFIG = {
-    inferenceInterval   : 250, //  between frames sent to server
-    minConfidence       : .50,
-    streamWidth         : 640,
-    streamHeight        : 480,
-    captureWidth        : 320,  //  downscaled before sending
-    captureHeight       : 240,
-    jpegQuality         : .6
+    inferenceInterval: 250, //  between frames sent to server
+    minConfidence: .50,
+    streamWidth: 640,
+    streamHeight: 480,
+    captureWidth: 320,  //  downscaled before sending
+    captureHeight: 240,
+    jpegQuality: .6
 };
 
 /*========== CANVAS / CAMERA ========== */
@@ -98,14 +105,14 @@ function drawLoop() {
 async function initCamera() {
     try {
         // Requests the stream only once
-        const stream = await navigator.mediaDevices.getUserMedia({ 
+        const stream = await navigator.mediaDevices.getUserMedia({
             video: {
-                width       : { ideal: CONFIG.streamWidth },
-                height      : { ideal: CONFIG.streamHeight },
-                frameRate   : { ideal: 30, max: 30 }
+                width: { ideal: CONFIG.streamWidth },
+                height: { ideal: CONFIG.streamHeight },
+                frameRate: { ideal: 30, max: 30 }
             }
         });
-        
+
         // Set stream to the video element for frame capture
         videoStream = stream;
         video.srcObject = stream;
@@ -121,9 +128,9 @@ async function initCamera() {
 }
 
 /*========== INFERENCE ========== */
-let isRunning       = false;
-let inferenceTimer  = null;
-let lastResult      = null;
+let isRunning = false;
+let inferenceTimer = null;
+let lastResult = null;
 let inferenceInFlight = false;  // guard: blocks overlapping requests
 let placeholderRemoved = false;
 
@@ -139,19 +146,19 @@ captureCanvas.height = CONFIG.captureHeight;
 const captureCtx = captureCanvas.getContext('2d');
 
 const logList = document.getElementById('log-list');
-const ensembleLabel      = document.querySelector('#ensemble-log .emotion-label');
+const ensembleLabel = document.querySelector('#ensemble-log .emotion-label');
 const ensembleConfidence = document.querySelector('#ensemble-log .emotion-confidence');
-const cnnLabel      = document.querySelector('#cnn-log .emotion-label');
+const cnnLabel = document.querySelector('#cnn-log .emotion-label');
 const cnnConfidence = document.querySelector('#cnn-log .emotion-confidence');
 
 const emotionColors = {
-    Happy       : '#39ffb4', 
-    Sad         : '#ff55aa', 
-    Fear        : '#aa55ff',
-    Angry       : '#ff5555', 
-    Disgust     : '#8DB600', 
-    Surprise    : '#FF6B00', 
-    Neutral     : '#55AAFF'
+    Happy: '#39ffb4',
+    Sad: '#ff55aa',
+    Fear: '#aa55ff',
+    Angry: '#ff5555',
+    Disgust: '#8DB600',
+    Surprise: '#FF6B00',
+    Neutral: '#55AAFF'
 };
 
 const EMOTION_ORDER = ['Happy', 'Neutral', 'Sad', 'Fear', 'Angry', 'Disgust', 'Surprise']
@@ -160,7 +167,7 @@ function renderEmotionBars(containerId, probs) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    if(!probs) {
+    if (!probs) {
         container.innerHTML = '<span class="emotion-bars-placeholder">No data</span>';
         return;
     }
@@ -197,16 +204,16 @@ async function sendFrame() {
 
     try {
         const response = await fetch('/predict', {
-            method  : 'POST',
-            headers : { 'Content-Type': 'application/json'},
-            body    : JSON.stringify({
-                frame   : base64Frame,
-                compare : isCompare
-            }) 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                frame: base64Frame,
+                compare: isCompare
+            })
         });
 
         const inferenceMs = (performance.now() - t0).toFixed(0);
-        const result      = await response.json();
+        const result = await response.json();
 
         handleResult(result, inferenceMs, isCompare);
     } catch (err) {
@@ -229,19 +236,19 @@ function handleResult(result, inferenceMs, isCompare) {
 function handleDashboardResult(result, inferenceMs) {
     if (result.label === 'No Face' || result.label === 'Error') {
         lastResult = null;
-        emotionDisplay.textContent      = '--';
-        confidenceDisplay.textContent   = 'No face detected';
+        emotionDisplay.textContent = '--';
+        confidenceDisplay.textContent = 'No face detected';
         return;
     }
 
     lastResult = result;
 
     emotionDisplay.textContent = result.label;
-    confidenceDisplay.textContent = 
+    confidenceDisplay.textContent =
         (result.confidence * 100).toFixed(1) + '%';
 
     renderEmotionBars('dash-bars-list', result.probs || null);
-    
+
     // Append to session log every prediction
     appendSessionLog(result.label, result.confidence, inferenceMs);
     collectCandidate();
@@ -283,9 +290,9 @@ function appendSessionLog(label, confidence, inferenceMs) {
 
     // Timestamp e.g. "14:23:07"
     const time = new Date().toLocaleTimeString([], {
-        hour    : '2-digit',
-        minute  : '2-digit',
-        second  : '2-digit'
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
     });
 
     const entry = document.createElement('div');
@@ -311,8 +318,8 @@ function appendSessionLog(label, confidence, inferenceMs) {
 
 // Comparison: ensemble vs CNN baseline, with inference time
 function handleComparisonResult(result, inferenceMs) {
-    const ensemble  = result.ensemble;
-    const cnn       = result.cnn_only;
+    const ensemble = result.ensemble;
+    const cnn = result.cnn_only;
 
     // Keep bbox from ensemble result for canvas drawing
     if (ensemble && ensemble.label !== 'No Face' && ensemble.label !== 'Error') {
@@ -322,16 +329,16 @@ function handleComparisonResult(result, inferenceMs) {
     }
 
     //  Ensemble panel (#ensemble-log)
-    if (ensembleLabel)      ensembleLabel.textContent = ensemble?.label ?? '--';
+    if (ensembleLabel) ensembleLabel.textContent = ensemble?.label ?? '--';
     if (ensembleConfidence) ensembleConfidence.textContent = ensemble
         ? `${(ensemble.confidence * 100).toFixed(1)}% | ${inferenceMs} ms`
         : '0.0% | -- ms';
-    
+
     renderEmotionBars('ensemble-bars-list', ensemble?.probs || null);
 
     // CNN baseline panel (#cnn-log)
-    if (cnnLabel)       cnnLabel.textContent = cnn?.label ?? '--';
-    if (cnnConfidence)  cnnConfidence.textContent = cnn
+    if (cnnLabel) cnnLabel.textContent = cnn?.label ?? '--';
+    if (cnnConfidence) cnnConfidence.textContent = cnn
         ? `${(cnn.confidence * 100).toFixed(1)}% | ${inferenceMs} ms`
         : '0.0% | --ms';
 
@@ -371,14 +378,14 @@ function startInference() {
     if (isRunning) return;
     isRunning = true;
     inferenceTimer = setInterval(sendFrame, CONFIG.inferenceInterval);
-    captureTimer   = setInterval(captureFrame, captureIntervalMs);
+    captureTimer = setInterval(captureFrame, captureIntervalMs);
 
     setTimeout(() => captureFrame(), 3000);
 }
 
 function stopInference() {
-    isRunning           = false;
-    inferenceInFlight   = false;
+    isRunning = false;
+    inferenceInFlight = false;
     clearInterval(inferenceTimer);
     clearInterval(captureTimer);
     lastResult = null;
@@ -443,7 +450,7 @@ function renderChart() {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { 
+                    labels: {
                         color: 'white',
                         padding: 16,
                         boxWidth: 12,
@@ -469,12 +476,12 @@ function renderChart() {
 }
 
 /*========== FRAME CAPTURES ========== */
-let captureIntervalMs   = 5 * 60 * 1000;
-let captureTimer        = null;
-let captureBuffer       = [];           // rolling buffer of recent captures
-let candidateBuffer     = [];           // rolling candidates collected during interval
-const MAX_CAPTURES      = 7;
-const MIN_CONFIDENCE    = 0.55;         // only candidates above this threshold
+let captureIntervalMs = 5 * 60 * 1000;
+let captureTimer = null;
+let captureBuffer = [];           // rolling buffer of recent captures
+let candidateBuffer = [];           // rolling candidates collected during interval
+const MAX_CAPTURES = 7;
+const MIN_CONFIDENCE = 0.55;         // only candidates above this threshold
 
 function updateCaptureInterval(minutes) {
     captureIntervalMs = parseInt(minutes) * 60 * 1000;
@@ -492,9 +499,9 @@ function collectCandidate() {
     if (lastResult.confidence < MIN_CONFIDENCE) return;
 
     // Draw current frame
-    const snap    = document.createElement('canvas');
-    snap.width    = CONFIG.captureWidth;
-    snap.height   = CONFIG.captureHeight;
+    const snap = document.createElement('canvas');
+    snap.width = CONFIG.captureWidth;
+    snap.height = CONFIG.captureHeight;
     const snapCtx = snap.getContext('2d');
     snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
 
@@ -506,14 +513,14 @@ function collectCandidate() {
         const padX = Math.round(0.5 * bw);  // horizontal padding
         const padY = Math.round(0.6 * bh); // vertical padding
 
-        const cx  = Math.max(0, bx - padX);
-        const cy  = Math.max(0, by - padY);
-        const cw  = Math.min(bw + 2 * padX, snap.width  - cx);
-        const ch  = Math.min(bh + 2 * padY, snap.height - cy);
+        const cx = Math.max(0, bx - padX);
+        const cy = Math.max(0, by - padY);
+        const cw = Math.min(bw + 2 * padX, snap.width - cx);
+        const ch = Math.min(bh + 2 * padY, snap.height - cy);
 
-        const crop    = document.createElement('canvas');
-        crop.width    = cw;
-        crop.height   = ch;
+        const crop = document.createElement('canvas');
+        crop.width = cw;
+        crop.height = ch;
         crop.getContext('2d').drawImage(snap, cx, cy, cw, ch, 0, 0, cw, ch);
         dataUrl = crop.toDataURL('image/jpeg', 0.8);
     } else {
@@ -522,9 +529,9 @@ function collectCandidate() {
 
     candidateBuffer.push({
         dataUrl,
-        label      : lastResult.label,
-        confidence : lastResult.confidence,
-        time       : new Date().toLocaleTimeString([], {
+        label: lastResult.label,
+        confidence: lastResult.confidence,
+        time: new Date().toLocaleTimeString([], {
             hour: '2-digit', minute: '2-digit', second: '2-digit'
         }),
         color: emotionColors[lastResult.label] || '#ffffff'
@@ -555,7 +562,7 @@ function captureFrame() {
 }
 
 function renderCaptures() {
-    const grid  = document.getElementById('captures-grid');
+    const grid = document.getElementById('captures-grid');
     const empty = document.getElementById('captures-empty');
     if (!grid) return;
 
@@ -607,28 +614,28 @@ function exportData(type) {
 
     } else if (type === 'psych') {
         // Clinical log — structured, meaningful
-        const now       = new Date();
-        const dateStr   = now.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
-        const timeStr   = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const now = new Date();
+        const dateStr = now.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         // Aggregate stats
-        const counts    = {};
+        const counts = {};
         const confByEmo = {};
-        let current     = sessionLog.head;
-        let totalConf   = 0;
+        let current = sessionLog.head;
+        let totalConf = 0;
 
         while (current) {
             const { label, confidence } = current.data;
-            counts[label]    = (counts[label] || 0) + 1;
+            counts[label] = (counts[label] || 0) + 1;
             confByEmo[label] = (confByEmo[label] || []);
             confByEmo[label].push(confidence);
             totalConf += confidence;
             current = current.next;
         }
 
-        const total       = sessionLog.size;
-        const avgConf     = (totalConf / total * 100).toFixed(1);
-        const dominant    = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        const total = sessionLog.size;
+        const avgConf = (totalConf / total * 100).toFixed(1);
+        const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
         const dominantPct = (dominant[1] / total * 100).toFixed(1);
 
         // Build report
@@ -651,8 +658,8 @@ function exportData(type) {
         Object.entries(counts)
             .sort((a, b) => b[1] - a[1])
             .forEach(([emotion, count]) => {
-                const pct     = (count / total * 100).toFixed(1);
-                const avgC    = (confByEmo[emotion].reduce((a, b) => a + b, 0) / confByEmo[emotion].length * 100).toFixed(1);
+                const pct = (count / total * 100).toFixed(1);
+                const avgC = (confByEmo[emotion].reduce((a, b) => a + b, 0) / confByEmo[emotion].length * 100).toFixed(1);
                 content += `${emotion},${count},${pct}%,${avgC}%\n`;
             });
 
@@ -677,20 +684,260 @@ function exportData(type) {
 // Helper to avoid repeating blob/download logic
 function downloadFile(content, filename) {
     const blob = new Blob(["\ufeff" + content], { type: 'text/plain;charset=utf-8;' });
-    const url  = window.URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
     a.download = filename;
     a.click();
     window.URL.revokeObjectURL(url);
     alert(`Exported successfully as ${filename}!`);
 }
 
+(function () {
+    /* ── Emotion colour map (matches rest of app) ── */
+    const EMO_COLORS = {
+        Happy: '#39ffb4',
+        Sad: '#ff55aa',
+        Fear: '#aa55ff',
+        Angry: '#ff5555',
+        Disgust: '#8DB600',
+        Surprise: '#FF6B00',
+        Neutral: '#55AAFF'
+    };
+    const EMOTION_ORDER = ['Happy', 'Neutral', 'Sad', 'Fear', 'Angry', 'Disgust', 'Surprise'];
+
+    let metricsData = null;
+    let activeModel = 'ensemble_cnn_catboost';
+    let aucChart = null;
+    let f1Chart = null;
+
+    /* ── Fetch once and wire up ── */
+    async function loadMetrics() {
+        try {
+            const res = await fetch('/model_metrics');
+            metricsData = await res.json();
+            renderHero();
+            renderCharts();
+            renderTable(activeModel);
+            renderCallouts();
+        } catch (e) {
+            console.error('Could not load model_metrics.json:', e);
+        }
+    }
+
+    /* ── Hero numbers ── */
+    function pct(v) { return (v * 100).toFixed(1) + '%'; }
+    function renderHero() {
+        const cnn = metricsData.models.cnn_resnet50.overall;
+        const ens = metricsData.models.ensemble_cnn_catboost.overall;
+        const imp = metricsData.improvements;
+
+        document.querySelector('#hero-cnn-acc .hero-value').textContent = pct(cnn.accuracy);
+        document.querySelector('#hero-ens-acc .hero-value').textContent = pct(ens.accuracy);
+        document.querySelector('#hero-delta-acc').textContent = `+${pct(imp.accuracy_delta)}`;
+
+        document.querySelector('#hero-cnn-f1 .hero-value').textContent = pct(cnn.macro_f1);
+        document.querySelector('#hero-ens-f1 .hero-value').textContent = pct(ens.macro_f1);
+        document.querySelector('#hero-delta-f1').textContent = `+${pct(imp.f1_delta)}`;
+
+        document.querySelector('#hero-cnn-ece .hero-value').textContent = cnn.ece.toFixed(4);
+        document.querySelector('#hero-ens-ece .hero-value').textContent = ens.ece.toFixed(4);
+        const eceDelta = (imp.ece_delta * 100).toFixed(1);
+        document.querySelector('#hero-delta-ece').textContent = `${eceDelta}% (better)`;
+        document.querySelector('#hero-delta-ece').classList.add('negative');
+    }
+
+    /* ── Charts ── */
+    function renderCharts() {
+        const cnn = metricsData.models.cnn_resnet50.per_class;
+        const ens = metricsData.models.ensemble_cnn_catboost.per_class;
+
+        /* Radar — AUC per emotion */
+        const radarCtx = document.getElementById('auc-radar-chart').getContext('2d');
+        if (aucChart) aucChart.destroy();
+        aucChart = new Chart(radarCtx, {
+            type: 'radar',
+            data: {
+                labels: EMOTION_ORDER,
+                datasets: [
+                    {
+                        label: 'CNN',
+                        data: EMOTION_ORDER.map(e => +(cnn[e].auc * 100).toFixed(2)),
+                        borderColor: 'rgba(255,85,85,0.8)',
+                        backgroundColor: 'rgba(255,85,85,0.08)',
+                        pointBackgroundColor: 'rgba(255,85,85,0.9)',
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Ensemble',
+                        data: EMOTION_ORDER.map(e => +(ens[e].auc * 100).toFixed(2)),
+                        borderColor: 'rgba(57,255,180,0.9)',
+                        backgroundColor: 'rgba(57,255,180,0.1)',
+                        pointBackgroundColor: '#39ffb4',
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        min: 85, max: 100,
+                        ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 }, stepSize: 5 },
+                        grid: { color: 'rgba(255,255,255,0.08)' },
+                        angleLines: { color: 'rgba(255,255,255,0.08)' },
+                        pointLabels: { color: 'rgba(255,255,255,0.65)', font: { size: 11 } }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, boxWidth: 10 } }
+                }
+            }
+        });
+
+        /* Bar — F1 per emotion */
+        const barCtx = document.getElementById('f1-bar-chart').getContext('2d');
+        if (f1Chart) f1Chart.destroy();
+        f1Chart = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: EMOTION_ORDER,
+                datasets: [
+                    {
+                        label: 'CNN',
+                        data: EMOTION_ORDER.map(e => +(cnn[e].f1 * 100).toFixed(1)),
+                        backgroundColor: 'rgba(255,85,85,0.55)',
+                        borderColor: 'rgba(255,85,85,0.9)',
+                        borderWidth: 1,
+                        borderRadius: 3
+                    },
+                    {
+                        label: 'Ensemble',
+                        data: EMOTION_ORDER.map(e => +(ens[e].f1 * 100).toFixed(1)),
+                        backgroundColor: 'rgba(57,255,180,0.55)',
+                        borderColor: 'rgba(57,255,180,0.9)',
+                        borderWidth: 1,
+                        borderRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { ticks: { color: 'rgba(255,255,255,0.5)', font: { size: 10 } }, grid: { display: false } },
+                    y: {
+                        min: 50, max: 100,
+                        ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 }, callback: v => v + '%' },
+                        grid: { color: 'rgba(255,255,255,0.06)' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, boxWidth: 10 } },
+                    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%` } }
+                }
+            }
+        });
+    }
+
+    /* ── Per-class table ── */
+    function renderTable(modelKey) {
+        const model = metricsData.models[modelKey];
+        const tbody = document.getElementById('metrics-table-body');
+        tbody.innerHTML = '';
+
+        EMOTION_ORDER.forEach(emo => {
+            const d = model.per_class[emo];
+            const col = EMO_COLORS[emo] || '#fff';
+            const barW = Math.round(d.f1 * 80);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <span style="display:inline-flex;align-items:center;gap:0.45rem;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${col};display:inline-block;flex-shrink:0;"></span>
+                        ${emo}
+                    </span>
+                </td>
+                <td>${(d.precision * 100).toFixed(1)}%</td>
+                <td>${(d.recall * 100).toFixed(1)}%</td>
+                <td class="f1-cell">
+                    <div class="f1-bar-bg">
+                        <span>${(d.f1 * 100).toFixed(1)}%</span>
+                        <div class="f1-bar-inline" style="width:${barW}px;background:${col};"></div>
+                    </div>
+                </td>
+                <td>${d.support.toLocaleString()}</td>
+                <td>${(d.auc * 100).toFixed(2)}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        /* Macro-average footer row */
+        const o = model.overall;
+        const foot = document.createElement('tr');
+        foot.style.borderTop = '2px solid rgba(255,255,255,0.12)';
+        foot.innerHTML = `
+            <td style="font-weight:600;color:rgba(255,255,255,0.5)">Macro avg</td>
+            <td style="font-weight:600">${(o.macro_precision * 100).toFixed(1)}%</td>
+            <td style="font-weight:600">${(o.macro_recall * 100).toFixed(1)}%</td>
+            <td style="font-weight:600">${(o.macro_f1 * 100).toFixed(1)}%</td>
+            <td style="color:rgba(255,255,255,0.4)">—</td>
+            <td style="font-weight:600">${(o.auc_macro * 100).toFixed(2)}%</td>
+        `;
+        tbody.appendChild(foot);
+    }
+
+    /* ── Callouts ── */
+    function renderCallouts() {
+        const imp = metricsData.improvements;
+        const ds = metricsData.dataset;
+        const ens = metricsData.models.ensemble_cnn_catboost;
+
+        const confused = ens.confusion_most_confused_pair;
+        document.getElementById('callout-confused-text').textContent =
+            `The model most frequently confuses ${confused[0]} and ${confused[1]}. ` +
+            `These share overlapping facial muscle movements in the upper face.`;
+
+        const ecePct = Math.abs(imp.ece_delta / metricsData.models.cnn_resnet50.overall.ece * 100).toFixed(0);
+        document.getElementById('callout-ece-text').textContent =
+            `Ensemble reduces calibration error (ECE) by ~${ecePct}% relative to the CNN baseline, ` +
+            `meaning confidence scores are more reliable.`;
+
+        document.getElementById('callout-dataset-text').textContent =
+            `${ds.name} — ${ds.total_samples.toLocaleString()} samples, `;
+    }
+
+    /* ── Tab switching ── */
+    document.querySelectorAll('.mi-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.mi-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeModel = btn.dataset.model;
+            if (metricsData) renderTable(activeModel);
+        });
+    });
+
+    /* ── Auto-load when page becomes visible ── */
+    /* Hook into your switchPage() — call loadMetrics() once on first visit */
+    window._loadModelInfoMetrics = function () {
+        if (!metricsData) loadMetrics();
+    };
+
+    /* Also load on DOMContentLoaded if already on this page */
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            if (document.getElementById('model-info-page')?.classList.contains('active')) {
+                loadMetrics();
+            }
+        });
+    }
+})();
+
+
 /*========== INIT ========== */
 window.addEventListener('load', () => {
     activePage = 'dashboard';
-    canvas     = canvasElements['dashboard'];
-    ctx        = canvas.getContext('2d');
+    canvas = canvasElements['dashboard'];
+    ctx = canvas.getContext('2d');
     initCamera();
 
     document.querySelectorAll('.start-button').forEach(btn => {

@@ -1,0 +1,163 @@
+{
+  "_note": "Generated from notebook evaluation. Update values after retraining.",
+  "_generated": "2025-06-06",
+
+  "dataset": {
+    "name": "FER-2013 Dataset",
+    "total_samples": 35887,
+    "train_split": 0.85,
+    "val_split": 0.10,
+    "test_splt": 0.10
+  },
+
+  "models": {
+    "cnn_resnet50": {
+      "label": "CNN (ResNet-50)",
+      "overall": {
+        "accuracy": 0.7147,
+        "macro_f1": 0.6666,
+        "macro_precision": 0.6857,
+        "macro_recall": 0.6413,
+        "auc_macro": 0.9071,
+        "ece": 0.1370
+      },
+      "per_class": {
+        "Angry": {
+          "precision": 0.6621,
+          "recall": 0.6459,
+          "f1": 0.6539,
+          "support": 449,
+          "auc": 0.9
+        },
+        "Disgust": {
+          "precision": 0.3060,
+          "recall": 0.8039,
+          "f1": 0.4432,
+          "support": 51,
+          "auc": 0.97
+        },
+        "Fear": {
+          "precision": 0.5957,
+          "recall": 0.5143,
+          "f1": 0.5520,
+          "support": 490,
+          "auc": 0.85
+        },
+        "Happy": {
+          "precision": 0.9410,
+          "recall": 0.8711,
+          "f1": 0.9047,
+          "support": 861,
+          "auc": 0.98
+        },
+        "Sad": {
+          "precision": 0.5870,
+          "recall": 0.5923,
+          "f1": 0.5896,
+          "support": 547,
+          "auc": 0.87
+        },
+        "Surprise": {
+          "precision": 0.7895,
+          "recall": 0.8312,
+          "f1": 0.8098,
+          "support": 397,
+          "auc": 0.97
+        },
+        "Neutral": {
+          "precision": 0.6945,
+          "recall": 0.7326,
+          "f1": 0.7130,
+          "support": 602,
+          "auc": 0.91
+        }
+      },
+      "confusion_most_confused_pair": [
+        "Sad",
+        "Neutral"
+      ],
+      "confusion_most_confused_count": 81,
+      "prediction_confidence": {
+        "correct": 0.6173,
+        "incorrect": 0.4906
+      }
+    },
+    "ensemble_cnn_catboost": {
+      "label": "Stacking Ensemble",
+      "overall": {
+        "accuracy": 0.7262,
+        "macro_f1": 0.7203,
+        "macro_precision": 0.7313,
+        "macro_recall": 0.7126,
+        "auc_macro": 0.9300,
+        "ece": 0.0206
+      },
+      "per_class": {
+        "Angry": {
+          "precision": 0.6644,
+          "recall": 0.6437,
+          "f1": 0.6538,
+          "support": 449,
+          "auc": 0.92
+        },
+        "Disgust": {
+          "precision": 0.8636,
+          "recall": 0.7451,
+          "f1": 0.8000,
+          "support": 51,
+          "auc": 0.97
+        },
+        "Fear": {
+          "precision": 0.6053,
+          "recall": 0.5102,
+          "f1": 0.5537,
+          "support": 490,
+          "auc": 0.87
+        },
+        "Happy": {
+          "precision": 0.9102,
+          "recall": 0.8943,
+          "f1": 0.9022,
+          "support": 861,
+          "auc": 0.97
+        },
+        "Sad": {
+          "precision": 0.5691,
+          "recall": 0.6399,
+          "f1": 0.6024,
+          "support": 547,
+          "auc": 0.88
+        },
+        "Surprise": {
+          "precision": 0.8173,
+          "recall": 0.8111,
+          "f1": 0.8142,
+          "support": 397,
+          "auc": 0.97
+        },
+        "Neutral": {
+          "precision": 0.6892,
+          "recall": 0.7442,
+          "f1": 0.7157,
+          "support": 602,
+          "auc": 0.93
+        }
+      },
+      "confusion_most_confused_pair": [
+        "Fear",
+        "Sad"
+      ],
+      "confusion_most_confused_count": 85,
+      "prediction_confidence": {
+        "correct": 0.7635,
+        "incorrect": 0.5574
+      }
+    }
+  },
+  "improvements": {
+    "accuracy_delta": 0.0115,
+    "f1_delta": 0.0537,
+    "ece_delta": 0.1164,
+    "note": "Ensemble ECE is ??? than CNN baseline (0.1370 vs 0.0206); stacking ??? calibration error."
+  }
+}

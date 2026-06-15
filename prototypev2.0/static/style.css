@@ -790,6 +790,247 @@ video {
     height: 0;
 }
 
+#model-info-page.active {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    overflow-y: auto;
+    max-height: 100vh;
+    background: var(--secondary);
+    background: transparent;
+}
+
+body.model-info-active header {
+    background-color: var(--primary);
+}
+
+body.model-info-active .header-title,
+body.model-info-active .header span {
+    color: var(--secondary);
+}
+
+body.model-info-active .nav-list .nav-link {
+    color: rgba(128, 0, 0, 0.45);
+}
+
+body.model-info-active .nav-list .nav-link:hover,
+body.model-info-active .nav-list .nav-link.active {
+    color: var(--secondary);
+}
+
+body.model-info-active .hamburger-btn .bar {
+    background: var(--secondary);
+}
+
+body.model-info-active .mobile-nav {
+    background: var(--primary);
+}
+
+body.model-info-active .mobile-nav-list .nav-link {
+    color: rgba(128, 0, 0, 0.55);
+}
+
+body.model-info-active .mobile-nav-list .nav-link:hover,
+body.model-info-active .mobile-nav-list .nav-link.active {
+    color: var(--secondary);
+    background: rgba(128, 0, 0, 0.06);
+}
+
+body.model-info-active .main-content {
+    background: var(--secondary);
+}
+
+.mi-header { }
+.mi-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    color: #fff;
+}
+.mi-subtitle {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.45);
+    margin: 0;
+}
+
+/* ── Hero row ── */
+.mi-hero-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+.mi-hero-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.mi-hero-card.ensemble {
+    border-color: rgba(57,255,180,0.35);
+    background: rgba(57,255,180,0.06);
+}
+.hero-label {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.hero-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+.mi-hero-card.ensemble .hero-value { color: #39ffb4; }
+.hero-delta {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #39ffb4;
+}
+.hero-delta.negative { color: #39ffb4; } /* ECE going down is good */
+
+/* ── Charts row ── */
+.mi-charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.mi-chart-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.mi-section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+}
+.mi-section-sub {
+    font-size: 0.73rem;
+    color: rgba(255,255,255,0.38);
+    margin: 0;
+}
+.mi-chart-wrap {
+    position: relative;
+    height: 220px;
+    margin-top: 0.5rem;
+}
+
+/* ── Table ── */
+.mi-table-section {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.mi-table-toggle {
+    display: flex;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.mi-tab {
+    flex: 1;
+    padding: 0.8rem 1rem;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+}
+.mi-tab.active {
+    color: #39ffb4;
+    background: rgba(57,255,180,0.06);
+    border-bottom: 2px solid #39ffb4;
+}
+.mi-table-wrap { overflow-x: auto; }
+.mi-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.mi-table thead th {
+    padding: 0.7rem 1rem;
+    text-align: left;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.03);
+}
+.mi-table tbody td {
+    padding: 0.65rem 1rem;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.85);
+}
+.mi-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+.mi-table-loading {
+    text-align: center;
+    color: rgba(255,255,255,0.3);
+    padding: 2rem !important;
+}
+.f1-cell { font-weight: 600; }
+.f1-bar-bg {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.f1-bar-inline {
+    height: 4px;
+    border-radius: 2px;
+    background: #39ffb4;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+/* ── Callouts ── */
+.mi-callout-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.mi-callout {
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-start;
+    background: rgba(255,165,0,0.07);
+    border: 1px solid rgba(255,165,0,0.2);
+    border-radius: 10px;
+    padding: 1rem;
+}
+.mi-callout.positive {
+    background: rgba(57,255,180,0.06);
+    border-color: rgba(57,255,180,0.25);
+}
+.mi-callout.info {
+    background: rgba(85,170,255,0.06);
+    border-color: rgba(85,170,255,0.25);
+}
+.callout-icon { font-size: 1.2rem; line-height: 1; }
+.mi-callout strong {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.mi-callout p {
+    font-size: 0.84rem;
+    color: #fff;
+    margin: 0.2rem 0 0;
+    line-height: 1.4;
+}
+
 /*========== LARGER SCREENS ========== */
 @media (width <= 1600px) {
     .header {
@@ -1072,6 +1313,12 @@ video {
         padding: 0 1.2em;
         margin: 1em 0;
     }
+}
+
+@media (max-width: 700px) {
+    .mi-hero-row { grid-template-columns: 1fr 1fr; }
+    .mi-charts-row { grid-template-columns: 1fr; }
+    .mi-callout-row { grid-template-columns: 1fr; }
 }
 
 /*========== MOBILE (400px and below) ========== */

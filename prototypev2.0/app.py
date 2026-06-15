@@ -121,11 +121,11 @@ class EmotionDetector:
 
                     num_features = self.resnet.fc.in_features
                     self.resnet.fc = torch.nn.Sequential(
-                        torch.nn.Linear(num_features, 512),
-                        torch.nn.BatchNorm1d(512),
-                        torch.nn.Dropout(0.5),
+                        torch.nn.Linear(num_features, 256),
+                        torch.nn.BatchNorm1d(256),
+                        torch.nn.Dropout(0.4),
                         torch.nn.ReLU(inplace=True),
-                        torch.nn.Linear(512, num_classes)
+                        torch.nn.Linear(256, num_classes)
                     )
                 
                 def forward(self, x):
@@ -143,7 +143,7 @@ class EmotionDetector:
 
             # Log checkpoint metadata at startup
             print(f"ℹ️ Checkpoint epoch:     {checkpoint.get('epoch', 'N/A')}")
-            print(f"ℹ️ train accuracy:    {checkpoint.get('train_acc', 'N/A'):.2f}")
+            print(f"ℹ️ Train accuracy:    {checkpoint.get('train_acc', 'N/A'):.2f}")
             print(f"ℹ️ Best val accuracy:    {checkpoint.get('best_val_acc', 'N/A'):.2f}")
             print(f"ℹ️ Epochs trained:       {checkpoint.get('epochs_trained', 'N/A')}")
 
@@ -179,18 +179,18 @@ class EmotionDetector:
             raise   # stops startup immediately instead of running with no models loaded
 
         # ── 4. Temperature Scaling ───────────────────────────
-        temp_path = os.path.join(self.model_dir, 'optimal_temperature.json')
+        temp_path = os.path.join(self.model_dir, 'optimal_temperatures.json')
         if os.path.exists(temp_path):
             with open(temp_path, 'r') as f:
                 temps = json.load(f)
-            self.T_cnn      = float(temps.get("T_cnn",      1.0))
-            self.T_catboost = float(temps.get("T_catboost", 1.0))
+            self.T_cnn      = float(temps.get("cnn_temperature",      1.0))
+            self.T_catboost = float(temps.get("catboost_temperature", 1.0))
             print(f"✅ Temperature scaling loaded - "
                   f"T_cnn={self.T_cnn:.4f}, T_catboost={self.T_catboost:.4f}")
         else:
             self.T_cnn      = 1.0
             self.T_catboost = 1.0
-            print("ℹ️ No optimal_temperature.json found - "
+            print("ℹ️ No optimal_temperatures.json found - "
                   "temperature scaling disabled (T=1.0 no-op).")
     
     # ── Helpers ───────────────────────────
@@ -529,7 +529,7 @@ class EmotionDetector:
             }
 
             # ── Ensemble via meta-classifier ───────────────────────────
-            stacked     = np.hstack((cnn_probs_cal, cat_probs_cal)) # (1, 12)
+            stacked     = np.hstack((cnn_probs_cal, cat_probs_cal)) # (1, 14)
             final_dist  = self.meta_model.predict_proba(stacked)[0] # (6,)
             ensemble_idx = int(np.argmax(final_dist))
 
@@ -606,10 +606,25 @@ def predict():
     # }
     # return jsonify(result)
 
+@app.route('/model_metrics')
+def model_metrics_route():
+    import json, os
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model_metrics.json')
+    with open(path) as f:
+        return jsonify(json.load(f))
+
 # ─────────────── Entry point ───────────────
 if __name__ == "__main__":
     from livereload import Server
-    threading.Timer(1.2, lambda: webbrowser.open("http://127.0.0.1:5500")).start()
+
+    def open_browser(url: str):
+        browser_name = os.getenv("FLASK_BROWSER", "chrome")
+        try:
+            webbrowser.get(browser_name).open(url)
+        except webbrowser.Error:
+            webbrowser.open(url)
+
+    threading.Timer(1.2, lambda: open_browser("http://127.0.0.1:5500")).start()
 
     server = Server(app.wsgi_app)
 

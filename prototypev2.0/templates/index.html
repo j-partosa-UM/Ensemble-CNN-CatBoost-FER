@@ -51,7 +51,7 @@
 
     <div class="comp-content__comparison-panel">
         <div class="comp-content__result-panel" id="cnn-log">
-            <h3 class="result-panel-header">CNN (Baseline)</h3>
+            <h3 class="result-panel-header">CNN</h3>
             <div class="emotion-label">--</div>
             <div class="emotion-confidence">0.0% | -- ms</div>
             <div class="emotion-bars-panel comp-bars" id="cnn-emotion-bars">
@@ -62,7 +62,7 @@
         </div>
 
         <div class="comp-content__result-panel" id="ensemble-log">
-            <h3 class="result-panel-header">CNN-CatBoost (Proposed)</h3>
+            <h3 class="result-panel-header">CNN-CatBoost</h3>
             <div class="emotion-label">--</div>
             <div class="emotion-confidence">0.0% | -- ms</div>
             <div class="emotion-bars-panel comp-bars" id="ensemble-emotion-bars">
@@ -153,4 +153,114 @@
         </div>
     </div>
 </section>
+
+<section id="model-info-page" class="page-section"> 
+    <div class="mi-header">
+        <h2 class="mi-title">Model Performance</h2>
+        <p class="mi-subtitle">Evaluation results on held-out test set — CNN baseline vs CNN-CatBoost ensemble</p>
+    </div>
+
+    <!-- ── HERO METRICS ── -->
+    <div class="mi-hero-row" id="mi-hero-row">
+        <div class="mi-hero-card" id="hero-cnn-acc">
+            <span class="hero-label">CNN Accuracy</span>
+            <span class="hero-value">--</span>
+        </div>
+        <div class="mi-hero-card ensemble" id="hero-ens-acc">
+            <span class="hero-label">Ensemble Accuracy</span>
+            <span class="hero-value">--</span>
+            <span class="hero-delta" id="hero-delta-acc"></span>
+        </div>
+        <div class="mi-hero-card" id="hero-cnn-f1">
+            <span class="hero-label">CNN Macro-F1</span>
+            <span class="hero-value">--</span>
+        </div>
+        <div class="mi-hero-card ensemble" id="hero-ens-f1">
+            <span class="hero-label">Ensemble Macro-F1</span>
+            <span class="hero-value">--</span>
+            <span class="hero-delta" id="hero-delta-f1"></span>
+        </div>
+        <div class="mi-hero-card" id="hero-cnn-ece">
+            <span class="hero-label">CNN ECE ↓</span>
+            <span class="hero-value">--</span>
+        </div>
+        <div class="mi-hero-card ensemble" id="hero-ens-ece">
+            <span class="hero-label">Ensemble ECE ↓</span>
+            <span class="hero-value">--</span>
+            <span class="hero-delta" id="hero-delta-ece"></span>
+        </div>
+    </div>
+
+    <!-- ── CHARTS ROW ── -->
+    <div class="mi-charts-row">
+        <!-- Radar: AUC per emotion -->
+        <div class="mi-chart-card">
+            <h3 class="mi-section-title">AUC per Emotion</h3>
+            <p class="mi-section-sub">Higher = better discriminability per class</p>
+            <div class="mi-chart-wrap">
+                <canvas id="auc-radar-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Bar: F1 comparison -->
+        <div class="mi-chart-card">
+            <h3 class="mi-section-title">F1-Score by Emotion</h3>
+            <p class="mi-section-sub">CNN vs Ensemble side-by-side</p>
+            <div class="mi-chart-wrap">
+                <canvas id="f1-bar-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── PER-CLASS TABLE ── -->
+    <div class="mi-table-section">
+        <div class="mi-table-toggle">
+            <button class="mi-tab active" data-model="ensemble_cnn_catboost">Ensemble (CNN-CatBoost)</button>
+            <button class="mi-tab" data-model="cnn_resnet50">CNN Baseline (ResNet-50)</button>
+        </div>
+        <div class="mi-table-wrap">
+            <table class="mi-table" id="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Emotion</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                        <th>F1-Score</th>
+                        <th>Support</th>
+                        <th>AUC</th>
+                    </tr>
+                </thead>
+                <tbody id="metrics-table-body">
+                    <tr><td colspan="6" class="mi-table-loading">Loading metrics…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── CALLOUT ── -->
+    <div class="mi-callout-row" id="mi-callout-row">
+        <div class="mi-callout" id="callout-confused">
+            <span class="callout-icon">⚠️</span>
+            <div>
+                <strong>Most Confused Pair</strong>
+                <p id="callout-confused-text">Loading…</p>
+            </div>
+        </div>
+        <div class="mi-callout positive" id="callout-ece">
+            <span class="callout-icon">✅</span>
+            <div>
+                <strong>Calibration Improvement</strong>
+                <p id="callout-ece-text">Loading…</p>
+            </div>
+        </div>
+        <div class="mi-callout info" id="callout-dataset">
+            <span class="callout-icon">📊</span>
+            <div>
+                <strong>Test Dataset</strong>
+                <p id="callout-dataset-text">Loading…</p>
+            </div>
+        </div>
+    </div>
+</section>
+
 {% endblock %}
