@@ -18,7 +18,19 @@
 
     <video id="video-feed-dash" autoplay muted playsinline></video>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script defer src="{{ url_for('static', filename='config.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='session.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='metrics.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='charts.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='captures.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='export.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='navigation.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='inference.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='model-info.js') }}"></script>
     <script defer src="{{ url_for('static', filename='main.js') }}"></script>
+    
 </body>
 
 </html>

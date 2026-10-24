@@ -3,16 +3,31 @@
 {% block content %}
 <!--========== DASHBOARD PAGE ==========-->
 <section id="dashboard-page" class="page-section active">
+
     <div class="dash-content__cam cam-panel">
+        <div class="comp-legend-row" id="dash-content__emotion-legend">
+            <div class="emotion-legend-inner">
+                <span class="legend-item"><span class="legend-dot happy"></span>Happy</span>
+                <span class="legend-item"><span class="legend-dot sad"></span>Sad</span>
+                <span class="legend-item"><span class="legend-dot fear"></span>Fear</span>
+                <span class="legend-item"><span class="legend-dot angry"></span>Angry</span>
+                <span class="legend-item"><span class="legend-dot disgust"></span>Disgust</span>
+                <span class="legend-item"><span class="legend-dot surprise"></span>Surprise</span>
+                <span class="legend-item"><span class="legend-dot neutral"></span>Neutral</span>
+            </div>
+        </div>
+
         <div class="emotion-readout">
             <div class="readout-main" id="emotion-display">--</div>
             <div class="readout-sub" id="confidence-display">Ready to start</div>
+            <div id="distance-badge" class="distance-badge">--</div>
         </div>
-        <canvas id="video-canvas-dash"></canvas>
-    </div>
 
-    <div class="dash-content__cam-btn">
-        <button class="start-button">Start Logging</button>
+        <canvas id="video-canvas-dash"></canvas>
+
+        <div class="comp-cam-btn-overlay">
+            <button class="start-button">Start Logging</button>
+        </div>
     </div>
 
     <div class="dash-content__session-log">
@@ -22,6 +37,26 @@
                 Entries will show here...
             </div>
         </section>
+
+        <div class="dash-summary-panel">
+            <div class="metric-card">
+                <span>Avg Confidence</span>
+                <strong id="dashboard-avg-confidence">--</strong>
+            </div>
+            <div class="metric-card">
+                <span>Inference Latency</span>
+                <strong id="dashboard-latency">-- ms</strong>
+            </div>
+            <div class="metric-card">
+                <span>Capture Count</span>
+                <strong id="dashboard-capture-count">0</strong>
+            </div>
+            <div class="metric-card">
+                <span>Top Emotion</span>
+                <strong id="dashboard-top-emotion">--</strong>
+            </div>
+        </div>
+
         <div class="emotion-bars-panel" id="dash-emotion-bars">
             <h4 class="emotion-bars-title">Live Probabilities</h4>
             <div class="emotion-bars-list" id="dash-bars-list">
@@ -30,55 +65,21 @@
         </div>
     </div>
 
-    <div id="dash-content__emotion-legend" class="emotion-legend-panel">
-        <div class="emotion-legend-inner">
-            <span class="legend-item"><span class="legend-dot happy"></span>Happy</span>
-            <span class="legend-item"><span class="legend-dot sad"></span>Sad</span>
-            <span class="legend-item"><span class="legend-dot fear"></span>Fear</span>
-            <span class="legend-item"><span class="legend-dot angry"></span>Angry</span>
-            <span class="legend-item"><span class="legend-dot disgust"></span>Disgust</span>
-            <span class="legend-item"><span class="legend-dot surprise"></span>Surprise</span>
-            <span class="legend-item"><span class="legend-dot neutral"></span>Neutral</span>
-        </div>
+    <div class="dash-note">
+        <strong>Live inference mode.</strong> Confidence values reflect the model's softmax output — how certain the model is in its prediction, not a measure of correctness. Metrics requiring ground-truth labels (Accuracy, Precision, Recall, F1, ECE, Confusion Matrix) cannot be computed here. Performance figures cited in this study were computed on the held-out FER2013 test set.
     </div>
+
 </section>
 
-<!--========== COMPARISON PAGE (BASELINE CNN VS ENSEMBLE) ==========-->
+<!--========== COMPARISON PAGE ==========-->
 <section id="comparison-page" class="page-section">
-    <div class="comp-content__cam cam-panel">
-        <canvas id="video-canvas-comp"></canvas>
-    </div>
+  <div class="comp-main-row">
 
-    <div class="comp-content__comparison-panel">
-        <div class="comp-content__result-panel" id="cnn-log">
-            <h3 class="result-panel-header">CNN</h3>
-            <div class="emotion-label">--</div>
-            <div class="emotion-confidence">0.0% | -- ms</div>
-            <div class="emotion-bars-panel comp-bars" id="cnn-emotion-bars">
-                <div class="emotion-bars-list" id="cnn-bars-list">
-                    <span class="emotion-bars-placeholder">Start comparison</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="comp-content__result-panel" id="ensemble-log">
-            <h3 class="result-panel-header">CNN-CatBoost</h3>
-            <div class="emotion-label">--</div>
-            <div class="emotion-confidence">0.0% | -- ms</div>
-            <div class="emotion-bars-panel comp-bars" id="ensemble-emotion-bars">
-                <div class="emotion-bars-list" id="ensemble-bars-list">
-                    <span class="emotion-bars-placeholder">Start comparison</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="comp-content__cam-btn">
-        <button class="start-button">Start Comparison</button>
-    </div>
-
-    <div class="comp-content__emotion-legend">
-        <div class="emotion-legend-inner">
+    <!-- Camera + note — LEFT (2fr) -->
+    <div class="comp-cam-col">
+      <div class="comp-content__cam cam-panel">
+        <div class="comp-legend-row" id="comp-content__emotion-legend">
+          <div class="emotion-legend-inner">
             <span class="legend-item"><span class="legend-dot happy"></span>Happy</span>
             <span class="legend-item"><span class="legend-dot sad"></span>Sad</span>
             <span class="legend-item"><span class="legend-dot fear"></span>Fear</span>
@@ -86,72 +87,410 @@
             <span class="legend-item"><span class="legend-dot disgust"></span>Disgust</span>
             <span class="legend-item"><span class="legend-dot surprise"></span>Surprise</span>
             <span class="legend-item"><span class="legend-dot neutral"></span>Neutral</span>
-            </span>
+          </div>
         </div>
+        <div class="emotion-readout">
+          <div class="readout-main" id="comp-distance-label">Live Feed</div>
+          <div id="distance-badge-comp" class="distance-badge">Optimal Distance - cm</div>
+        </div>
+        <canvas id="video-canvas-comp"></canvas>
+        <div class="comp-cam-btn-overlay">
+          <button class="start-button">Start Comparison</button>
+        </div>
+      </div>
+
+      <!-- Note is OUTSIDE cam-panel but INSIDE comp-cam-col -->
+      <div class="comp-content__note">
+        <strong>Live inference mode.</strong> Confidence values reflect the model's softmax output — how certain the model is in its prediction, not a measure of correctness. Metrics requiring ground-truth labels (Accuracy, Precision, Recall, F1, ECE, Confusion Matrix) cannot be computed here. Performance figures cited in this study were computed on the held-out FER2013 test set.
+      </div>
     </div>
+
+
+    <!-- Side panels — RIGHT (1fr), stacked vertically -->
+    <div class="comp-side-panels">
+
+      <!-- CNN -->
+      <div class="comp-panel">
+        <div class="comp-panel__left">
+          <div class="comp-panel__header">
+            <h3 class="comp-panel__title">CNN</h3>
+            <span class="comp-panel__badge">Baseline</span>
+          </div>
+          <div class="metric-card"><span>Current Conf.</span><strong id="comp-cnn-conf">--</strong></div>
+          <div class="metric-card"><span>Avg Confidence</span><strong id="comp-cnn-avg-conf">--</strong></div>
+          <div class="metric-card"><span>Dominant Expression</span><strong id="comp-cnn-dominant">--</strong></div>
+          <div class="metric-card"><span>Low Conf. Frames</span><strong id="comp-cnn-low">0</strong></div>
+        </div>
+        <div class="comp-panel__right">
+          <div class="comp-panel__readout">
+            <div class="readout-main" id="comp-cnn-label">--</div>
+            <div class="readout-sub" id="comp-cnn-confidence">0.0% | -- ms</div>
+          </div>
+          <div class="emotion-bars-panel" id="cnn-emotion-bars">
+            <h4 class="emotion-bars-title">Live Probabilities</h4>
+            <div class="emotion-bars-list" id="cnn-bars-list">
+              <!-- skeleton rows -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ensemble -->
+      <div class="comp-panel">
+        <div class="comp-panel__left">
+          <div class="comp-panel__header">
+            <h3 class="comp-panel__title">Ensemble</h3>
+            <span class="comp-panel__badge comp-panel__badge--enhanced">Enhanced</span>
+          </div>
+          <div class="metric-card"><span>Current Conf.</span><strong id="comp-ensemble-conf">--</strong></div>
+          <div class="metric-card"><span>Avg Confidence</span><strong id="comp-ens-avg-conf">--</strong></div>
+          <div class="metric-card"><span>Dominant Expression</span><strong id="comp-ens-dominant">--</strong></div>
+          <div class="metric-card"><span>Low Conf. Frames</span><strong id="comp-ens-low">0</strong></div>
+        </div>
+        <div class="comp-panel__right">
+          <div class="comp-panel__readout">
+            <div class="readout-main" id="comp-ens-label">--</div>
+            <div class="readout-sub" id="comp-ens-confidence">0.0% | -- ms</div>
+          </div>
+          <div class="emotion-bars-panel" id="ensemble-emotion-bars">
+            <h4 class="emotion-bars-title">Live Probabilities</h4>
+            <div class="emotion-bars-list" id="ensemble-bars-list">
+              <!-- skeleton rows -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+    
 </section>
 
-<!--========== ANALYSIS PAGE (GRAPH & EXPORT DATA) ==========-->
+<!--========== ANALYSIS PAGE ==========-->
 <section id="analysis-page" class="page-section">
+
     <div class="analytics-container__top">
-        <h3>Session Analytics</h3>
-        <p>Overview of emotions detected in the current sessions</p>
+        <h3>Session Analysis</h3>
+        <p>Real-time facial affect monitoring — clinical support tool</p>
+        <div class="analytics-metrics-legend">
+            <span><strong>EAR:</strong> Eye Aspect Ratio via MediaPipe landmarks</span>
+            <span><strong>AU:</strong> Action Unit proxies (FACS-based)</span>
+            <span><strong>Arousal:</strong> Valence-arousal mapping from predicted emotion</span>
+        </div>
     </div>
 
     <!-- CAPTURE PANEL -->
-     <div class="analytics-container__captures">
+    <div class="analytics-container__captures">
         <div class="captures-header">
             <h3 class="captures-title">Top Captured Frames</h3>
             <div class="captures-controls">
                 <label for="capture-interval">Interval</label>
                 <select id="capture-interval" onchange="updateCaptureInterval(this.value)">
-                    <option value="1">1 min</option>
-                    <option value="5" selected>5 min</option>
+                    <option value="1" selected>1 min</option>
+                    <option value="5">5 min</option>
                     <option value="10">10 min</option>
                     <option value="15">15 min</option>
                 </select>
             </div>
         </div>
         <div class="captures-grid" id="captures-grid">
-            <div class="capture-empty" id="captures-empty">
-                <p>No captures yet — start logging to collect frames</p>
+            <div id="capture-placeholders" class="capture-skeleton-container">
+                <div class="capture-skeleton"></div>
+                <div class="capture-skeleton"></div>
+                <div class="capture-skeleton"></div>
+                <div class="capture-skeleton"></div>
+                <div class="capture-skeleton"></div>
+                <div class="capture-skeleton"></div>
+                <div class="capture-skeleton"></div>
             </div>
-        </div>
-     </div>
-
-    <div class="analytics-container__mid">
-        <div class="chart-card">
-            <h3>Emotion Distribution</h3>
-            <div class="chart-wrapper">
-                <canvas id="emotionChart"></canvas>
-            </div>
-            <div id="no-data-msg">
-                No data yet. Start logging first.
-            </div>
-        </div>
-
-        <div class="export-card">
-            <h3>Export Data</h3>
-            <div class="export-options">
-                <div class="export-option" onclick="exportData('csv')">
-                    <span class="export-icon">📄</span>
-                    <div>
-                        <h4>Download CSV</h4>
-                        <p>Raw spreadsheet data</p>
-                    </div>
-                </div>
-
-                <div class="export-option" onclick="exportData('psych')">
-                    <span class="export-icon">💾</span>
-                    <div>
-                        <h4>Clinical Data Log</h4>
-                        <p>For professional early diagnosis</p>
-                    </div>
-                </div>
-            </div>
-            <p>Secure Export • Local Storage Only</p>
         </div>
     </div>
+
+    <!-- ROW 1: Facial Expression Distribution | AU Radar | Negative Affect | Export -->
+    <div class="analytics-row-1">
+
+        <!-- Facial Expression Distribution -->
+        <div class="chart-card chart-card--doughnut">
+            <div class="chart-card__title">Facial Expression Distribution</div>
+            <div class="chart-wrapper">
+                <div id="emotion-skeleton" class="skeleton-loader">
+                    <div class="skeleton-circle"></div>
+                </div>
+                <canvas id="emotionChart" class="chart-content"></canvas>
+                <!-- Dominant Expression label centered in doughnut hole -->
+                <div class="doughnut-center" id="doughnut-center">
+                    <span class="doughnut-center__label">Dominant</span>
+                    <span class="doughnut-center__value" id="dominant-emotion-label">--</span>
+                </div>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Session Duration</span>
+                    <strong id="session-duration">--</strong>
+                </div>
+                <div class="meta-item">
+                    <span>Dominant Affect</span>
+                    <strong id="dominant-emotion-pct">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Facial Action Units -->
+        <div class="chart-card chart-card--radar">
+            <div class="chart-card__title">Facial Action Units (AU)</div>
+            <div class="chart-wrapper">
+                <div id="au-skeleton" class="skeleton-loader">
+                    <div class="skeleton-circle"></div>
+                </div>
+                <canvas id="auChart" class="chart-content"></canvas>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Peak AU</span>
+                    <strong id="peak-au">--</strong>
+                </div>
+                <div class="meta-item">
+                    <span>Genuine Smile</span>
+                    <strong id="genuine-smile">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Negative Affect Load — gauge replacing bar chart -->
+        <div class="chart-card chart-card--gauge">
+            <div class="chart-card__title">Negative Affect Load</div>
+            <div class="chart-wrapper">
+                <div id="negaffect-skeleton" class="skeleton-loader">
+                    <div class="skeleton-bar" style="width:100%;height:100%;border-radius:.5em;"></div>
+                </div>
+                <div class="neg-affect-gauge chart-content" id="negAffectGauge">
+                    <!-- Master gauge -->
+                    <div class="gauge-group gauge-group--master">
+                        <div class="gauge-header">
+                            <span class="gauge-header__label">Total negative affect</span>
+                            <span class="gauge-header__value" id="neg-affect-total">--</span>
+                        </div>
+                        <div class="gauge-track">
+                            <div class="gauge-fill" id="neg-affect-fill-total" style="width:0%"></div>
+                            <div class="gauge-threshold-line" title="Clinical concern threshold (40%)"></div>
+                        </div>
+                        <div class="gauge-sublabel">Threshold at 40%</div>
+                    </div>
+                    <!-- Per-emotion breakdown -->
+                    <div class="gauge-breakdown">
+                        <div class="gauge-group">
+                            <div class="gauge-header">
+                                <span class="gauge-header__label">Anger</span>
+                                <span class="gauge-header__value gauge-header__value--anger" id="neg-affect-anger">--</span>
+                            </div>
+                            <div class="gauge-track">
+                                <div class="gauge-fill gauge-fill--anger" id="neg-affect-fill-anger" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="gauge-group">
+                            <div class="gauge-header">
+                                <span class="gauge-header__label">Sadness</span>
+                                <span class="gauge-header__value gauge-header__value--sad" id="neg-affect-sad">--</span>
+                            </div>
+                            <div class="gauge-track">
+                                <div class="gauge-fill gauge-fill--sad" id="neg-affect-fill-sad" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="gauge-group">
+                            <div class="gauge-header">
+                                <span class="gauge-header__label">Fear</span>
+                                <span class="gauge-header__value gauge-header__value--fear" id="neg-affect-fear">--</span>
+                            </div>
+                            <div class="gauge-track">
+                                <div class="gauge-fill gauge-fill--fear" id="neg-affect-fill-fear" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="gauge-group">
+                            <div class="gauge-header">
+                                <span class="gauge-header__label">Disgust</span>
+                                <span class="gauge-header__value gauge-header__value--disgust" id="neg-affect-disgust">--</span>
+                            </div>
+                            <div class="gauge-track">
+                                <div class="gauge-fill gauge-fill--disgust" id="neg-affect-fill-disgust" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Negative Affect %</span>
+                    <strong id="neg-affect-pct">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export -->
+        <div class="export-card">
+            <div class="export-header">
+                <h3>Export Data</h3>
+                <p class="export-subtitle">Download your session results</p>
+            </div>
+            <div class="export-buttons">
+                <button class="export-btn" onclick="exportData('csv')">
+                    <svg class="export-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    <span class="export-btn-label">Raw CSV</span>
+                </button>
+                <button class="export-btn" onclick="exportData('psych')">
+                    <svg class="export-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 11l3 3L22 4"/>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    <span class="export-btn-label">Observation Log</span>
+                </button>
+                <button class="export-btn" onclick="exportData('pdf')">
+                    <svg class="export-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                        <rect x="8" y="13" width="8" height="2" rx="1"/>
+                        <rect x="8" y="17" width="5" height="2" rx="1"/>
+                    </svg>
+                    <span class="export-btn-label">PDF Report</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ROW 2: Emotional Stability (1fr) | Expression Timeline (2fr) -->
+    <div class="analytics-row-2">
+
+        <div class="chart-card chart-card--line">
+            <div class="chart-card__title">Emotional Stability</div>
+            <div class="chart-wrapper">
+                <div id="stability-skeleton" class="skeleton-loader">
+                    <div class="skeleton-bar" style="width:100%;height:100%;border-radius:.5em;"></div>
+                </div>
+                <canvas id="stabilityChart" class="chart-content"></canvas>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Stability Index</span>
+                    <strong id="stability-index">--</strong>
+                </div>
+                <div class="meta-item">
+                    <span>State</span>
+                    <strong id="stability-state">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-card chart-card--timeline">
+            <div class="chart-card__title">EXpression Timeline</div>
+            <div class="chart-wrapper">
+                <div id="gantt-skeleton" class="skeleton-loader">
+                    <div class="skeleton-bar" style="width:100%;height:100%;border-radius:.5em;"></div>
+                </div>
+                <div id="ganttChart" class="chart-content gantt-chart-container">
+                    <div class="gantt-track" id="ganttTrack"></div>
+                    <div class="gantt-timestamps" id="ganttTimestamps"></div>
+                    <div class="gantt-legend" id="ganttLegend"></div>
+                </div>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Emotion Shifts</span>
+                    <strong id="emotion-shifts">--</strong>
+                </div>
+                <div class="meta-item">
+                    <span>Dominant (session)</span>
+                    <strong id="timeline-dominant">--</strong>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ROW 3: Eye Openness (2fr) | Arousal + Valence dual gauge (1fr) -->
+    <div class="analytics-row-3">
+
+        <div class="chart-card chart-card--line">
+            <div class="chart-card__title">Eye Openness + Blinks (EAR)</div>
+            <div class="chart-wrapper">
+                <div id="ear-skeleton" class="skeleton-loader">
+                    <div class="skeleton-bar" style="width:100%;height:100%;border-radius:.5em;"></div>
+                </div>
+                <canvas id="earChart" class="chart-content"></canvas>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Blink Count</span>
+                    <strong id="blink-count">--</strong>
+                </div>
+                <div class="meta-item">
+                    <span>Avg EAR</span>
+                    <strong id="avg-ear">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arousal + Valence — dual gauge replacing single bar chart -->
+        <div class="chart-card chart-card--gauge">
+            <div class="chart-card__title">Arousal &amp; Valence</div>
+            <div class="chart-wrapper">
+                <div id="arousal-skeleton" class="skeleton-loader">
+                    <div class="skeleton-bar" style="width:100%;height:100%;border-radius:.5em;"></div>
+                </div>
+                <div class="arousal-valence-gauge chart-content" id="arousalValenceGauge">
+
+                    <div class="av-gauge-item">
+                        <div class="gauge-header">
+                            <span class="gauge-header__label">Arousal</span>
+                            <span class="gauge-header__value" id="arousal-value">--</span>
+                        </div>
+                        <div class="gauge-track gauge-track--arousal">
+                            <div class="gauge-fill gauge-fill--arousal" id="arousal-fill" style="width:0%"></div>
+                        </div>
+                        <div class="gauge-range-labels">
+                            <span>Calm</span><span>Activated</span>
+                        </div>
+                        <div class="gauge-meta" id="arousal-meta" style="font-size:0.75rem;opacity:0.5;margin-top:2px;">Nervous system activation level</div> <!-- ← add -->
+                    </div>
+
+                    <div class="av-gauge-item">
+                        <div class="gauge-header">
+                            <span class="gauge-header__label">Valence</span>
+                            <span class="gauge-header__value" id="valence-value">--</span>
+                        </div>
+                        <div class="gauge-track gauge-track--valence">
+                            <div class="gauge-fill gauge-fill--valence" id="valence-fill" style="width:0%"></div>
+                        </div>
+                        <div class="gauge-range-labels">
+                            <span>Negative</span><span>Positive</span>
+                        </div>
+                        <div class="gauge-meta" id="valence-meta" style="font-size:0.75rem;opacity:0.5;margin-top:2px;">Emotional tone from mouth corner curve</div> <!-- ← add -->
+                    </div>
+
+                    <div class="av-state-label" id="av-state-label" style="font-size:0.7rem;opacity:0.5;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;">Current arousal state</div> <!-- ← add -->
+                    <div class="av-state-badge" id="av-state-badge">--</div>
+
+                </div>
+            </div>
+            <div class="chart-meta">
+                <div class="meta-item">
+                    <span>Arousal Level</span>
+                    <strong id="arousal-level">--</strong>
+                </div>
+                <div class="meta-item">
+                    <span>Valence (mouth curve)</span>
+                    <strong id="valence-level">--</strong>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
 </section>
 
 <section id="model-info-page" class="page-section"> 
@@ -262,5 +601,4 @@
         </div>
     </div>
 </section>
-
 {% endblock %}
